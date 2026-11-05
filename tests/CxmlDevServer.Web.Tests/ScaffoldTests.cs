@@ -6,8 +6,8 @@ public class ScaffoldTests
     public void WebCanSeeLowerLayers()
     {
         Assert.NotNull(typeof(CxmlDevServer.Web.Components.App));
-        Assert.NotNull(typeof(CxmlDevServer.Infrastructure.InfrastructureAssembly));
-        Assert.NotNull(typeof(CxmlDevServer.Core.CoreAssembly));
+        Assert.NotNull(typeof(CxmlDevServer.Infrastructure.Persistence.CxmlDevDbContext));
+        Assert.NotNull(typeof(CxmlDevServer.Core.Pipeline.CxmlInboundProcessor));
         Assert.NotNull(typeof(Cxml.Protocol.CxmlVersion));
     }
 }

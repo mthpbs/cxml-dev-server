@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <PackageReference Include="coverlet.collector" />
+    <PackageReference Include="Microsoft.Extensions.Configuration" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio" />
@@ -12,7 +13,12 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\CxmlDevServer.Core\CxmlDevServer.Core.csproj" />
+    <ProjectReference Include="..\..\src\CxmlDevServer.Infrastructure\CxmlDevServer.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <!-- The spec example documents are used as test input. -->
+  <ItemGroup>
+    <None Include="..\..\cXML-spec\Examples\0-OrderRequest.xml" Link="Samples\0-OrderRequest.xml" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>
