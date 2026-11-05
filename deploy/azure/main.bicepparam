@@ -6,6 +6,7 @@
 //   REGISTRY_SERVER       default ghcr.io                                  REGISTRY_USERNAME / REGISTRY_PASSWORD   private images only
 //   AZURE_LOCATION        region (empty: region of the resource group)
 //   PUBLIC_BASE_URL       custom-domain URL, e.g. https://cxml.contoso.com (empty: derived from the request)
+//   CUSTOM_DOMAINS_JSON   JSON array of bound custom domains, e.g. [{"name":"cxml.contoso.com","certificateId":"<resource ID>"}] (default [])
 //   EXISTING_ENVIRONMENT_ID  resource ID of an existing Container Apps environment (empty: create one)
 //
 //   az deployment group create --resource-group <rg> --parameters deploy/azure/main.bicepparam
@@ -51,6 +52,9 @@ param ipAllowList = []
 // param ipAllowList = [
 //   { name: 'office', cidr: '203.0.113.0/24' }
 // ]
+
+// Custom domains bound with "az containerapp hostname bind": keep them across deployments (see the Azure runbook).
+param customDomains = json(readEnvironmentVariable('CUSTOM_DOMAINS_JSON', '[]'))
 
 // param extraEnv = [
 //   { name: 'Cxml__DefaultCurrency', value: 'EUR' }

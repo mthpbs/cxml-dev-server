@@ -62,6 +62,7 @@ appear in a file or on a command line:
 | `AZURE_LOCATION` | `location` | empty (region of the resource group) | Azure region of the resources. |
 | `PUBLIC_BASE_URL` | `publicBaseUrl` | empty | Externally visible URL when a custom domain or another proxy is in front. |
 | `EXISTING_ENVIRONMENT_ID` | `existingEnvironmentResourceId` | empty (create one) | Resource ID of an existing Container Apps environment. |
+| `CUSTOM_DOMAINS_JSON` | `customDomains` | `[]` | JSON array of custom domains to keep bound, `[{"name":"...","certificateId":"..."}]`. |
 
 All other parameters have defaults in `main.bicep` and are set in `main.bicepparam` (edit that file in your
 fork or branch): `appName` (`cxml-dev-server`), `cpu` (`0.5`), `memory` (`1Gi`), `adminEnabled` (`true`),
@@ -261,7 +262,8 @@ gh variable set AZURE_RESOURCE_GROUP --repo "$GITHUB_REPO" --env "$GITHUB_ENVIRO
 ```
 
 Optional variables: `AZURE_LOCATION` (region of the resources; empty means the region of the resource
-group), `AZURE_PUBLIC_BASE_URL` (custom domain URL, see below) and `AZURE_EXISTING_ENVIRONMENT_ID`.
+group), `AZURE_PUBLIC_BASE_URL` (custom domain URL, see below), `AZURE_EXISTING_ENVIRONMENT_ID` and
+`AZURE_CUSTOM_DOMAINS_JSON` (bound custom domains, see below).
 
 ```bash
 gh variable set AZURE_LOCATION --repo "$GITHUB_REPO" --env "$GITHUB_ENVIRONMENT" --body "$LOCATION"
@@ -276,6 +278,7 @@ gh variable set AZURE_LOCATION --repo "$GITHUB_REPO" --env "$GITHUB_ENVIRONMENT"
 | `AZURE_LOCATION` | variable | no | `location` parameter |
 | `AZURE_PUBLIC_BASE_URL` | variable | no | `publicBaseUrl` parameter |
 | `AZURE_EXISTING_ENVIRONMENT_ID` | variable | no | `existingEnvironmentResourceId` parameter |
+| `AZURE_CUSTOM_DOMAINS_JSON` | variable | no | `customDomains` parameter (empty means `[]`) |
 
 Recommended on the GitHub side (*Settings*, *Environments*, `production`): add **required reviewers** so a
 pushed `v*` tag waits for approval, and limit *Deployment branches and tags* to the tags you release from.
@@ -543,8 +546,8 @@ address gets `403`**. That includes:
 
 ## Custom domain with a managed certificate
 
-The template does not manage custom domains. You bind one with the CLI after the first deployment, then tell
-the app its public URL.
+You bind a custom domain with the CLI after the first deployment, then record it in the deployment
+parameters (`customDomains`) so that later deployments keep it, and tell the app its public URL.
 
 1. **Collect the values** for your DNS records:
 
@@ -578,7 +581,30 @@ the app its public URL.
    `--environment` is the name of the Container Apps environment (`cxml-dev-server-env` by default).
    Issuing the certificate takes a few minutes.
 
-5. **Tell the app its public URL.** Behind a custom domain the ingress still preserves the `Host` header, so
+5. **Record the binding in the template parameters.** A Bicep deployment replaces the ingress configuration,
+   so a domain that is not listed in `customDomains` would be unbound by the next deployment. Find the
+   managed certificate that step 4 created and note its resource ID:
+
+   ```bash
+   az containerapp env certificate list --name cxml-dev-server-env --resource-group "$RESOURCE_GROUP" --managed-certificates-only --query "[].{name:name,subject:properties.subjectName,id:id}" --output table
+   ```
+
+   Then export (CLI deployments) or store as the GitHub variable `AZURE_CUSTOM_DOMAINS_JSON` (workflow) a JSON
+   array with every bound domain; the default is `[]`. `bindingType` defaults to `SniEnabled` when a
+   `certificateId` is given:
+
+   ```bash
+   export CUSTOM_DOMAINS_JSON='[{"name":"cxml.contoso.com","certificateId":"<managed-certificate-resource-id>"}]'
+   ```
+
+   ```bash
+   gh variable set AZURE_CUSTOM_DOMAINS_JSON --repo "$GITHUB_REPO" --env "$GITHUB_ENVIRONMENT" --body '[{"name":"cxml.contoso.com","certificateId":"<managed-certificate-resource-id>"}]'
+   ```
+
+   *Verify:* flags of `az containerapp env certificate list` differ between CLI versions; the portal's
+   *Certificates* blade of the environment shows the same resource ID.
+
+6. **Tell the app its public URL.** Behind a custom domain the ingress still preserves the `Host` header, so
    the URLs would already be right; setting `publicBaseUrl` pins them so that the `*.azurecontainerapps.io`
    address cannot leak into StartPage URLs. Export it and redeploy:
 
@@ -589,13 +615,8 @@ the app its public URL.
    Redeploy by CLI as in [First deployment](#first-deployment-from-the-cli), or set the repository/environment
    variable `AZURE_PUBLIC_BASE_URL` and run the workflow.
 
-6. **Verify** with `curl -fsS https://cxml.contoso.com/health`.
-
-*Verify:* the Bicep template does not declare `customDomains`, and a Bicep deployment replaces the ingress
-configuration of the app. After each later deployment, check
-`az containerapp hostname list --name cxml-dev-server --resource-group "$RESOURCE_GROUP"` and, if the domain
-is gone, repeat steps 3 and 4 (the DNS records and the certificate remain). Every deployment resets the data
-anyway, so this is part of the post-deployment routine of such an environment.
+7. **Verify** with `curl -fsS https://cxml.contoso.com/health`, and again after the next deployment to
+   confirm the binding survived (`az containerapp hostname list --name cxml-dev-server --resource-group "$RESOURCE_GROUP"`).
 
 ## Day-2 operations
 
@@ -733,7 +754,7 @@ change the revision template, so Azure may not create a new revision or pull the
 | `AADSTS70021: No matching federated identity record found` in `azure/login` | The federated credential subject does not match. It must read `repo:<owner>/<repo>:environment:<environment name>` exactly, including case. The job must use that environment. |
 | `AuthorizationFailed` during the deployment | The service principal lacks `Contributor` on the resource group (step 5), or the resource group name in `AZURE_RESOURCE_GROUP` is wrong. |
 | Workflow smoke test fails but the deployment succeeded | The new revision needed longer than the retries, the IP allow-list returns `403` to runners, or the app is unhealthy: see the logs. |
-| Custom domain stops working after a deployment | See the note at the end of [Custom domain](#custom-domain-with-a-managed-certificate): bind it again. |
+| Custom domain stops working after a deployment | It is missing from `CUSTOM_DOMAINS_JSON` / `AZURE_CUSTOM_DOMAINS_JSON`, so the deployment unbound it. Add it (step 5 of [Custom domain](#custom-domain-with-a-managed-certificate)) and redeploy, or run `az containerapp hostname bind` again. |
 | Browser shows the Blazor "Reconnecting" overlay repeatedly | The replica restarted (data reset) or WebSockets are blocked by a corporate proxy between the browser and Azure. Reload; check the system log for restarts. |
 
 ## Teardown

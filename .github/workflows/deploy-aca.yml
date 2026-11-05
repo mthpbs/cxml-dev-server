@@ -10,7 +10,7 @@
 #   variables: AZURE_RESOURCE_GROUP                                        existing resource group to deploy into
 # Optional:
 #   secrets:   GHCR_PULL_TOKEN                                             PAT with read:packages; only if the GHCR package is private
-#   variables: AZURE_LOCATION, AZURE_PUBLIC_BASE_URL, AZURE_EXISTING_ENVIRONMENT_ID
+#   variables: AZURE_LOCATION, AZURE_PUBLIC_BASE_URL, AZURE_EXISTING_ENVIRONMENT_ID, AZURE_CUSTOM_DOMAINS_JSON
 # All other parameters are in deploy/azure/main.bicepparam (it names main.bicep itself via its "using" line).
 # The smoke test runs on a GitHub-hosted runner: with an ipAllowList in main.bicepparam it gets 403 and the job fails.
 name: Deploy to Azure Container Apps
@@ -146,6 +146,7 @@ jobs:
           AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
           PUBLIC_BASE_URL: ${{ vars.AZURE_PUBLIC_BASE_URL }}
           EXISTING_ENVIRONMENT_ID: ${{ vars.AZURE_EXISTING_ENVIRONMENT_ID }}
+          CUSTOM_DOMAINS_JSON: ${{ vars.AZURE_CUSTOM_DOMAINS_JSON || '[]' }}
         run: |
           set -euo pipefail
           if [ -z "$RESOURCE_GROUP" ]; then

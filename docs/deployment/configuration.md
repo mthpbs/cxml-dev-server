@@ -135,6 +135,7 @@ block of the `app` service in `docker-compose.yml`.
 | `allowUnknownPartners` | `false` | `Cxml__AllowUnknownPartners` |
 | `seedDemoPartners` | `false` | `Cxml__SeedDemoPartners` |
 | `ipAllowList` | `[]` (open) | Ingress IP restrictions |
+| `customDomains` (env `CUSTOM_DOMAINS_JSON`) | `[]` | Custom domains kept bound to the ingress (`name`, `certificateId`, optional `bindingType`); see the [Azure runbook](azure-container-apps.md#custom-domain-with-a-managed-certificate) |
 | `extraEnv` | none | Additional plain environment variables, for example `{ name: 'Cxml__DefaultCurrency', value: 'EUR' }`. Never put secrets here. |
 | `cpu`, `memory` | `0.5`, `1Gi` | Replica size |
 

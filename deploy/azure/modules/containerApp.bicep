@@ -11,6 +11,17 @@ type allowedIp = {
 }
 
 @export()
+@description('A custom domain bound to the app ingress. Declared here so that a deployment keeps a binding made with "az containerapp hostname bind".')
+type customDomain = {
+  @description('Host name, for example cxml.contoso.com.')
+  name: string
+  @description('Resource ID of the managed or uploaded certificate in the Container Apps environment. Empty: the host name is added without a certificate.')
+  certificateId: string?
+  @description('SniEnabled (default when certificateId is set) or Disabled (default without a certificate).')
+  bindingType: ('SniEnabled' | 'Disabled')?
+}
+
+@export()
 @description('An additional plain-value environment variable.')
 type envVar = {
   @description('Variable name; use __ for configuration nesting (for example Cxml__DefaultCurrency).')
@@ -121,6 +132,9 @@ param ipAllowList allowedIp[] = []
 @description('Additional environment variables.')
 param extraEnv envVar[] = []
 
+@description('Custom domains of the ingress. Empty: none. Note that a deployment replaces the ingress configuration, so list every domain you want to keep here.')
+param customDomains customDomain[] = []
+
 // Validation hook: main.bicep passes a non-empty value only when the admin login is off or a hash was supplied. The
 // length constraint makes the deployment fail early, with this parameter name in the error, instead of creating an app
 // that refuses to start. (Bicep's assert statement is still experimental, so a parameter constraint is used.)
@@ -202,6 +216,11 @@ resource app 'Microsoft.App/containerApps@2024-03-01' = {
         targetPort: 8080
         transport: 'auto' // HTTP/1.1 + WebSockets (the Blazor admin UI needs WebSockets) and HTTP/2
         allowInsecure: false // plain HTTP is redirected to HTTPS by the ingress
+        customDomains: [for domain in customDomains: {
+          name: domain.name
+          certificateId: domain.?certificateId
+          bindingType: domain.?bindingType ?? (empty(domain.?certificateId ?? '') ? 'Disabled' : 'SniEnabled')
+        }]
         ipSecurityRestrictions: [for rule in ipAllowList: {
           name: rule.name
           description: 'Allowed by the ipAllowList parameter'

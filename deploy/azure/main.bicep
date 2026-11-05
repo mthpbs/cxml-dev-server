@@ -22,7 +22,7 @@
 
 targetScope = 'resourceGroup'
 
-import { allowedIp, envVar } from 'modules/containerApp.bicep'
+import { allowedIp, customDomain, envVar } from 'modules/containerApp.bicep'
 
 // ---------------------------------------------------------------- general
 
@@ -151,6 +151,9 @@ param ipAllowList allowedIp[] = []
 @description('Additional plain-value environment variables, for example [{ name: \'Cxml__DefaultCurrency\', value: \'EUR\' }]. Do not put secrets here.')
 param extraEnv envVar[] = []
 
+@description('Custom domains bound to the ingress, for example [{ name: \'cxml.contoso.com\', certificateId: \'<managed certificate resource ID>\' }]. A deployment replaces the ingress configuration, so list every domain you bound with "az containerapp hostname bind" to keep it. Empty: none.')
+param customDomains customDomain[] = []
+
 // ---------------------------------------------------------------- resources
 
 var createEnvironment = empty(existingEnvironmentResourceId)
@@ -201,6 +204,7 @@ module app 'modules/containerApp.bicep' = {
     seedDemoPartners: seedDemoPartners
     ipAllowList: ipAllowList
     extraEnv: extraEnv
+    customDomains: customDomains
     // Bicep's assert is experimental. The module parameter below has @minLength(1), so adminEnabled=true with an empty
     // adminPasswordHash makes the deployment fail early with an error naming the parameter.
     adminCredentialIsSetOrLoginDisabled: (!adminEnabled || !empty(adminPasswordHash)) ? 'ok' : ''
