@@ -82,4 +82,29 @@ public sealed class ComponentTests : BunitContext
         Assert.Equal("<a><b>", XmlFormatter.Pretty("<a><b>"));
         Assert.Equal(string.Empty, XmlFormatter.Pretty(null));
     }
+
+    [Theory]
+    [InlineData("\n")]
+    [InlineData("\r\n")]
+    public void Xml_formatter_keeps_the_xml_declaration_and_doctype_exactly(string newline)
+    {
+        const string declaration = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>";
+        const string doctype = "<!DOCTYPE cXML SYSTEM \"http://xml.cxml.org/schemas/cXML/1.2.071/Fulfill.dtd\">";
+        var raw = declaration + newline + doctype + newline + "<cXML><Request><a>x</a></Request></cXML>";
+
+        var pretty = XmlFormatter.Pretty(raw);
+
+        Assert.StartsWith(declaration + newline + doctype + Environment.NewLine + "<cXML>", pretty);
+        Assert.Contains(Environment.NewLine + "  <Request>", pretty);
+    }
+
+    [Fact]
+    public void Xml_formatter_keeps_a_doctype_that_has_a_public_id()
+    {
+        const string doctype = "<!DOCTYPE cXML PUBLIC \"-//cXML//DTD\" \"http://xml.cxml.org/schemas/cXML/1.2.071/cXML.dtd\">";
+
+        var pretty = XmlFormatter.Pretty(doctype + "<cXML><a/></cXML>");
+
+        Assert.StartsWith(doctype + Environment.NewLine + "<cXML>", pretty);
+    }
 }

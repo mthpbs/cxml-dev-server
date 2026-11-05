@@ -23,9 +23,16 @@
     .app-sidebar {
         width: 250px;
         flex: 0 0 250px;
-        height: 100vh;
+        /* The aside stretches to the full height of the page so its dark background never ends early;
+           the menu inside stays pinned to the viewport while the page scrolls. */
+        align-self: stretch;
+    }
+
+    .app-sidebar-inner {
         position: sticky;
         top: 0;
+        max-height: 100vh;
+        overflow-y: auto;
     }
 
     .app-content {

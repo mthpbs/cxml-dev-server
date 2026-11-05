@@ -101,5 +101,5 @@
 
 @media (min-width: 992px) {
     .nav-toggle-label { display: none; }
-    .nav-scrollable { display: block; height: calc(100vh - 4rem); }
+    .nav-scrollable { display: block; }
 }

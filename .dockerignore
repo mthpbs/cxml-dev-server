@@ -1,0 +1,29 @@
+# Build output and local state
+**/bin/
+**/obj/
+**/data/
+**/*.db
+**/*.db-shm
+**/*.db-wal
+**/*.user
+.vs/
+.vscode/
+.idea/
+
+# Source control and tooling
+.git/
+.gitignore
+.github/
+.config/
+
+# Not needed to build the image
+tests/
+docs/
+*.md
+Dockerfile
+.dockerignore
+docker-compose.yml
+
+# Only the DTDs are needed from the specification (Cxml.Protocol embeds cXML-spec/cXML_DTDs)
+cXML-spec/*
+!cXML-spec/cXML_DTDs/

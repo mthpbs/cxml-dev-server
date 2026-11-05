@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -19,6 +20,12 @@ public sealed partial class EmbeddedDtdResolver : XmlResolver
     private const string ResourcePrefix = "Cxml.Protocol.Dtds.";
 
     private static readonly Assembly ResourceAssembly = typeof(EmbeddedDtdResolver).Assembly;
+
+    // Preprocessed DTD text per embedded resource. The DTDs never change at runtime, so reading and rewriting
+    // them once per process is enough; each request gets its own stream over the cached bytes.
+    private static readonly ConcurrentDictionary<string, byte[]> PreprocessedCache = new(StringComparer.OrdinalIgnoreCase);
+
+    private static readonly Lazy<string[]> ResourceNames = new(ResourceAssembly.GetManifestResourceNames);
 
     private readonly List<string> _warnings = [];
 
@@ -51,9 +58,7 @@ public sealed partial class EmbeddedDtdResolver : XmlResolver
             stream = Open(CxmlVersion.Current, file);
         }
 
-        return stream is null
-            ? throw new XmlException($"Unknown cXML DTD '{file}'. Available: {string.Join(", ", EmbeddedFileNames)}.")
-            : InlineNonEmptyAnyEntities(stream);
+        return stream ?? throw new XmlException($"Unknown cXML DTD '{file}'. Available: {string.Join(", ", EmbeddedFileNames)}.");
     }
 
     /// <summary>
@@ -63,7 +68,7 @@ public sealed partial class EmbeddedDtdResolver : XmlResolver
     /// "must nest properly within markup declarations" and then fails every document. Inlining the
     /// replacement text yields the identical content model.
     /// </summary>
-    private static MemoryStream InlineNonEmptyAnyEntities(Stream source)
+    private static byte[] InlineNonEmptyAnyEntities(Stream source)
     {
         using var reader = new StreamReader(source, Encoding.UTF8);
 
@@ -76,17 +81,26 @@ public sealed partial class EmbeddedDtdResolver : XmlResolver
             text = text.Replace($"%{name};", value, StringComparison.Ordinal);
         }
 
-        return new MemoryStream(Encoding.UTF8.GetBytes(text));
+        return Encoding.UTF8.GetBytes(text);
     }
 
-    private static Stream? Open(string version, string file)
+    private static MemoryStream? Open(string version, string file)
     {
         var wanted = $"{ResourcePrefix}{CxmlVersion.Current}.{file}";
         var name = version.Equals(CxmlVersion.Current, StringComparison.OrdinalIgnoreCase)
-            ? ResourceAssembly.GetManifestResourceNames()
-                .FirstOrDefault(n => n.Equals(wanted, StringComparison.OrdinalIgnoreCase))
+            ? ResourceNames.Value.FirstOrDefault(n => n.Equals(wanted, StringComparison.OrdinalIgnoreCase))
             : null;
-        return name is null ? null : ResourceAssembly.GetManifestResourceStream(name);
+        if (name is null)
+        {
+            return null;
+        }
+
+        var bytes = PreprocessedCache.GetOrAdd(name, static n =>
+        {
+            using var source = ResourceAssembly.GetManifestResourceStream(n)!;
+            return InlineNonEmptyAnyEntities(source);
+        });
+        return new MemoryStream(bytes, writable: false);
     }
 
     [GeneratedRegex(@"<!--.*?-->", RegexOptions.Singleline | RegexOptions.CultureInvariant)]
