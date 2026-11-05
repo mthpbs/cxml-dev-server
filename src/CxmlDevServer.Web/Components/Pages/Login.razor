@@ -1,0 +1,56 @@
+@page "/login"
+@layout LoginLayout
+@attribute [AllowAnonymous]
+@attribute [ExcludeFromInteractiveRouting]
+@inject IOptions<AdminOptions> Admin
+
+<PageTitle>Sign in - cXML Dev Server</PageTitle>
+
+<div class="login-card card">
+    <div class="card-body p-4">
+        <div class="d-flex align-items-center gap-2 mb-4">
+            <span class="brand-mark-lg">cX</span>
+            <div>
+                <h1 class="h5 m-0">cXML Dev Server</h1>
+                <div class="text-body-secondary small">Admin sign-in</div>
+            </div>
+        </div>
+
+        @if (!Admin.Value.Enabled)
+        {
+            <p class="mb-3">The admin login is switched off, so there is nothing to sign in to.</p>
+            <a class="btn btn-primary" href="">Open the dashboard</a>
+        }
+        else
+        {
+            @if (Error is not null)
+            {
+                <div class="alert alert-danger py-2" role="alert" id="login-error">Wrong user name or password.</div>
+            }
+
+            <form method="post" action="account/login">
+                <AntiforgeryToken />
+                <input type="hidden" name="returnUrl" value="@SafeReturnUrl" />
+                <div class="mb-3">
+                    <label class="form-label" for="username">User name</label>
+                    <input class="form-control" id="username" name="username" autocomplete="username" autofocus required />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="password">Password</label>
+                    <input class="form-control" id="password" name="password" type="password" autocomplete="current-password" required />
+                </div>
+                <button class="btn btn-primary w-100" type="submit">Sign in</button>
+            </form>
+        }
+    </div>
+</div>
+
+@code {
+    [SupplyParameterFromQuery(Name = "returnUrl")]
+    private string? ReturnUrl { get; set; }
+
+    [SupplyParameterFromQuery(Name = "error")]
+    private string? Error { get; set; }
+
+    private string SafeReturnUrl => ReturnUrls.Sanitize(ReturnUrl);
+}

@@ -1,4 +1,5 @@
 @page "/messages"
+@attribute [Authorize(Policy = AdminAuthExtensions.PolicyName)]
 @using Cxml.Protocol.Validation
 @inject UiData Data
 

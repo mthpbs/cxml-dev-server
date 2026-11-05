@@ -1,8 +1,10 @@
 using CxmlDevServer.Core.Abstractions;
+using CxmlDevServer.Core.Options;
 using CxmlDevServer.Infrastructure.Seeding;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace CxmlDevServer.Infrastructure.Persistence;
 
@@ -11,12 +13,14 @@ public sealed class DatabaseInitializer : IDatabaseInitializer
 {
     private readonly CxmlDevDbContext _db;
     private readonly ILogger<DatabaseInitializer> _logger;
+    private readonly CxmlServerOptions _options;
 
     /// <summary>Creates the initializer.</summary>
-    public DatabaseInitializer(CxmlDevDbContext db, ILogger<DatabaseInitializer> logger)
+    public DatabaseInitializer(CxmlDevDbContext db, ILogger<DatabaseInitializer> logger, IOptions<CxmlServerOptions> options)
     {
         _db = db;
         _logger = logger;
+        _options = options.Value;
     }
 
     /// <inheritdoc />
@@ -44,11 +48,18 @@ public sealed class DatabaseInitializer : IDatabaseInitializer
         }
 
         _db.SupplierIdentities.AddRange(SeedData.SupplierIdentities());
-        _db.TradingPartners.AddRange(SeedData.TradingPartners());
         _db.CatalogItems.AddRange(SeedData.CatalogItems());
-        _db.ResponseScenarios.AddRange(SeedData.Scenarios());
+        if (_options.SeedDemoPartners)
+        {
+            _db.TradingPartners.AddRange(SeedData.TradingPartners());
+            _db.ResponseScenarios.AddRange(SeedData.Scenarios());
+        }
+
         await _db.SaveChangesAsync(cancellationToken);
-        _logger.LogInformation("Seeded demo supplier identities, trading partners, catalog items and scenarios.");
+        _logger.LogInformation(
+            _options.SeedDemoPartners
+                ? "Seeded demo supplier identities, trading partners, catalog items and scenarios."
+                : "Seeded supplier identities and catalog items (Cxml:SeedDemoPartners is false: no demo trading partners or scenarios).");
     }
 
     /// <summary>Creates the directory of a file database; returns <c>false</c> for in-memory databases.</summary>

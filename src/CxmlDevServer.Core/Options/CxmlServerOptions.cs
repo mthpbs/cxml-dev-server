@@ -35,6 +35,13 @@ public sealed class CxmlServerOptions
     /// <summary>When true the hosted service migrates and seeds the database on startup.</summary>
     public bool InitializeDatabaseOnStartup { get; set; } = true;
 
+    /// <summary>
+    /// When true (the default) an empty database is seeded with the demo trading partners (well-known shared
+    /// secrets such as <c>devsecret</c>) and a sample response scenario. Set it to false for shared environments:
+    /// supplier identities and the catalog are still seeded, but no demo partner or scenario is created.
+    /// </summary>
+    public bool SeedDemoPartners { get; set; } = true;
+
     /// <summary>Returns <see cref="PublicBaseUrl"/> or <paramref name="requestBaseUrl"/>, without a trailing slash.</summary>
     public string ResolveBaseUrl(string? requestBaseUrl) =>
         (string.IsNullOrWhiteSpace(PublicBaseUrl) ? requestBaseUrl ?? string.Empty : PublicBaseUrl).TrimEnd('/');

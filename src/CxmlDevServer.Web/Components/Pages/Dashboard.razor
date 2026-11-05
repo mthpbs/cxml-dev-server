@@ -1,4 +1,5 @@
 @page "/"
+@attribute [Authorize(Policy = AdminAuthExtensions.PolicyName)]
 @inject UiData Data
 @inject UiUrls Urls
 

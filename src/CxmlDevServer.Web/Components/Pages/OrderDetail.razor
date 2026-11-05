@@ -1,4 +1,5 @@
 @page "/orders/{Id:int}"
+@attribute [Authorize(Policy = AdminAuthExtensions.PolicyName)]
 @using Cxml.Protocol.Documents.Orders
 @using Cxml.Protocol.Parsing
 @inject UiData Data

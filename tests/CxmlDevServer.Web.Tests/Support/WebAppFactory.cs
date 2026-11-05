@@ -13,14 +13,18 @@ using Microsoft.Extensions.DependencyInjection;
 namespace CxmlDevServer.Web.Tests.Support;
 
 /// <summary>Hosts the real application against its own temporary SQLite file (one per test class).</summary>
-public sealed class WebAppFactory : WebApplicationFactory<Program>
+public class WebAppFactory : WebApplicationFactory<Program>
 {
     private readonly string _databaseFile = Path.Combine(Path.GetTempPath(), $"cxml-web-test-{Guid.NewGuid():N}.db");
+
+    /// <summary>The folder of the Data Protection keys of this factory's host.</summary>
+    public string KeysFolder { get; } = Path.Combine(Path.GetTempPath(), $"cxml-web-test-{Guid.NewGuid():N}-keys");
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseSetting("ConnectionStrings:Default", $"Data Source={_databaseFile}");
         builder.UseSetting("Cxml:PublicBaseUrl", string.Empty);
+        builder.UseSetting("DataProtection:KeysPath", KeysFolder);
     }
 
     /// <summary>A client that keeps cookies (needed for the antiforgery token) and does not follow redirects.</summary>
@@ -62,6 +66,18 @@ public sealed class WebAppFactory : WebApplicationFactory<Program>
                 {
                     // A leftover temp file is harmless.
                 }
+            }
+
+            try
+            {
+                if (Directory.Exists(KeysFolder))
+                {
+                    Directory.Delete(KeysFolder, recursive: true);
+                }
+            }
+            catch (IOException)
+            {
+                // A leftover temp folder is harmless.
             }
         }
     }

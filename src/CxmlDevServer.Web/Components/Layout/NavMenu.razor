@@ -25,4 +25,24 @@
     <NavLink class="nav-link" href="identities"><Icon Name="id" /> Supplier identities</NavLink>
     <NavLink class="nav-link" href="catalog"><Icon Name="box" /> Catalog</NavLink>
     <NavLink class="nav-link" href="rules"><Icon Name="check" /> Validation rules</NavLink>
+
+    @if (Admin.Value.Enabled)
+    {
+        <AuthorizeView Policy="@AdminAuthExtensions.PolicyName">
+            <Authorized>
+                <div class="nav-account" id="nav-account">
+                    <div class="nav-account-name" title="Signed in"><Icon Name="users" /> <span id="nav-username">@context.User.Identity?.Name</span></div>
+                    <form method="post" action="account/logout" data-enhance="false">
+                        <AntiforgeryToken />
+                        <button type="submit" class="btn btn-sm btn-outline-light" id="logout-button">Sign out</button>
+                    </form>
+                </div>
+            </Authorized>
+        </AuthorizeView>
+    }
 </nav>
+
+@code {
+    [Inject]
+    private IOptions<AdminOptions> Admin { get; set; } = default!;
+}

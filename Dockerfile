@@ -34,6 +34,14 @@ RUN dotnet publish src/CxmlDevServer.Web/CxmlDevServer.Web.csproj \
 
 # ---- runtime ----
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
+# Passed at build time, e.g. docker build --build-arg SOURCE_URL=https://github.com/<owner>/<repo> .
+# The repository has no license file yet: set LICENSES to an SPDX identifier once it has one.
+ARG SOURCE_URL=https://github.com/mthpbs/cxml-dev-server
+ARG LICENSES=NOASSERTION
+LABEL org.opencontainers.image.title="cXML Dev Server" \
+      org.opencontainers.image.description="A cXML 1.2.071 supplier simulator for testing PunchOut and OrderRequest integrations." \
+      org.opencontainers.image.source="${SOURCE_URL}" \
+      org.opencontainers.image.licenses="${LICENSES}"
 WORKDIR /app
 COPY --from=build /app/publish ./
 
@@ -42,11 +50,19 @@ COPY --from=build /app/publish ./
 RUN mkdir -p /app/data && chown -R app:app /app/data
 VOLUME /app/data
 
+# ASPNETCORE_FORWARDEDHEADERS_ENABLED makes the default host honour X-Forwarded-For/-Proto from any proxy, so a
+# TLS-terminating reverse proxy in front (Azure Container Apps ingress, Caddy, nginx) yields https:// StartPage URLs.
+# Only run this image behind such a proxy (or not exposed directly), or the headers can be spoofed by clients.
+# DataProtection__KeysPath keeps the login cookie and antiforgery keys in the data volume across restarts.
 ENV ASPNETCORE_URLS=http://+:8080 \
-    ConnectionStrings__Default="Data Source=/app/data/cxml-dev.db"
+    ASPNETCORE_FORWARDEDHEADERS_ENABLED=true \
+    ConnectionStrings__Default="Data Source=/app/data/cxml-dev.db" \
+    DataProtection__KeysPath=/app/data/keys
 # Optional, set at `docker run` time:
 #   -e Cxml__PublicBaseUrl=https://dev.example.com   externally visible URL (StartPage and Profile URLs)
 #   -e Cxml__AllowUnknownPartners=true
+#   -e Cxml__SeedDemoPartners=false                  no demo trading partners (shared environments)
+#   -e Admin__Enabled=true -e Admin__PasswordHash=... admin login (create the hash: docker run -it --rm <image> hash-password)
 EXPOSE 8080
 
 USER app

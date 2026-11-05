@@ -95,6 +95,28 @@
     color: #fff;
 }
 
+.nav-account {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin: 0.5rem 0.75rem 1.25rem 0.75rem;
+    padding: 0.75rem 0.75rem 0 0.75rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    color: var(--app-sidebar-text);
+    font-size: 0.85rem;
+}
+
+.nav-account-name {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 @media (max-width: 991.98px) {
     .nav-toggle-label { display: flex; }
 }

@@ -1,4 +1,5 @@
 @page "/sender"
+@attribute [Authorize(Policy = AdminAuthExtensions.PolicyName)]
 @using Cxml.Protocol.Documents.PunchOut
 @using CxmlDevServer.Core.Messaging
 @using CxmlDevServer.Core.Templates

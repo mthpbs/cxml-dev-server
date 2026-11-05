@@ -172,7 +172,7 @@ Both partners use Lenient validation. "Demo Buyer" returns PunchOut carts as `cX
 | `POST /punchout/{token}/cancel` | Leaves the session: HTML page that posts an empty cart (create) or the original items with status 204 (edit). |
 | `POST /test-buyer/punchout-return` | Built-in buyer receiver for the returned cart; decodes, validates, logs and displays it. |
 | `GET /health` | Liveness probe; answers `OK`. |
-| `/` | Admin UI: `/messages`, `/sessions`, `/orders`, `/sender`, `/scenarios`, `/partners`, `/identities`, `/catalog`, `/rules`. |
+| `/` | Admin UI (behind `/login` when `Admin:Enabled` is true): `/messages`, `/sessions`, `/orders`, `/sender`, `/scenarios`, `/partners`, `/identities`, `/catalog`, `/rules`. |
 
 ## Configuration
 
@@ -190,6 +190,33 @@ for the section separator, e.g. `Cxml__PublicBaseUrl`), `appsettings.Production.
 | `Cxml:SupplierDomain` / `Cxml:SupplierIdentity` | `DUNS` / `123456789` | Supplier credential used in outbound headers when no supplier identity is stored. |
 | `Cxml:DefaultCurrency` | `USD` | Currency for empty carts and templates. |
 | `Cxml:InitializeDatabaseOnStartup` | `true` | Apply EF migrations and seed demo data at startup. |
+| `Cxml:SeedDemoPartners` | `true` | `false`: an empty database gets no demo trading partners and no sample scenario (supplier identities and the catalog are still seeded). Use it for shared environments, since the demo partners have well-known secrets. |
+| `Admin:Enabled` | `false` | `true`: the admin UI requires a login. `/cxml`, the PunchOut shop, the test buyer and `/health` stay open. |
+| `Admin:Username` | `admin` | User name of the admin account. |
+| `Admin:PasswordHash` | none | Password hash (ASP.NET Core Identity format); see *Admin login* below. Required (or `Admin:Password`) when the login is enabled, otherwise the application does not start. |
+| `Admin:Password` | none | Plain-text fallback for secret stores; ignored when a hash is set. |
+| `Admin:SessionHours` | `8` | Sliding lifetime of the login cookie. |
+| `DataProtection:KeysPath` | `keys` folder next to the SQLite file | Where cookie and antiforgery keys are stored, so logins survive restarts. Empty: in memory. |
+| `ASPNETCORE_FORWARDEDHEADERS_ENABLED` | unset (`true` in the Docker image) | Environment variable that makes the server honour `X-Forwarded-For` and `X-Forwarded-Proto` from a reverse proxy, so URLs it creates are `https://` behind a TLS-terminating proxy. |
+
+### Admin login
+
+By default the admin UI is open (local development). To protect a shared instance, create a password hash and
+enable the login:
+
+```bash
+dotnet run --project src/CxmlDevServer.Web --no-launch-profile -- hash-password 'my password'   # prints the hash
+# or: docker run -it --rm cxml-dev-server hash-password       (prompts, or reads the password from stdin)
+
+export Admin__Enabled=true
+export Admin__PasswordHash='<the hash>'
+dotnet run --project src/CxmlDevServer.Web
+```
+
+Only the admin pages are protected. Buyers keep using `/cxml`, the PunchOut shop and the test buyer without a
+login. The login is rate limited (5 attempts per minute and client address). The executable also has
+`healthcheck [url]`, which exits 0 for a 2xx answer and 1 otherwise (default `http://127.0.0.1:8080/health`),
+for container health checks in images without curl.
 
 ## Project layout
 

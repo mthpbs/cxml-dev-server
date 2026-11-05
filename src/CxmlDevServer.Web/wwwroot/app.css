@@ -263,6 +263,15 @@ body.plain-page { background: var(--app-bg); }
 .cart-line .qty-input { width: 4.2rem; }
 .cart-total { font-size: 1.25rem; font-weight: 700; }
 
+/* ---------- Login page ---------- */
+.login-shell { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 1rem; }
+.login-card { width: 100%; max-width: 24rem; }
+.brand-mark-lg {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 2.5rem; height: 2.5rem; border-radius: 0.6rem;
+    background: var(--app-accent); color: #fff; font-weight: 700;
+}
+
 /* ---------- Sidebar (the layout CSS references these tokens) ---------- */
 .app-sidebar { background: var(--app-sidebar); }
 

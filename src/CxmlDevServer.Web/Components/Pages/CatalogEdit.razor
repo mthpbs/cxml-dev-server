@@ -1,5 +1,6 @@
 @page "/catalog/new"
 @page "/catalog/{Id:int}"
+@attribute [Authorize(Policy = AdminAuthExtensions.PolicyName)]
 @using System.ComponentModel.DataAnnotations
 @inject UiData Data
 @inject NavigationManager Navigation

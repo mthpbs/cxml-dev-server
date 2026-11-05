@@ -33,4 +33,20 @@ internal static class SqliteLocation
 
         return builder.ConnectionString;
     }
+
+    /// <summary>
+    /// The folder of the database file in a connection string returned by <see cref="Resolve"/>, or null for an
+    /// in-memory or URI database.
+    /// </summary>
+    public static string? DataDirectory(string resolvedConnectionString)
+    {
+        var builder = new SqliteConnectionStringBuilder(resolvedConnectionString);
+        var file = builder.DataSource;
+        if (string.IsNullOrWhiteSpace(file) || file == ":memory:" || builder.Mode == SqliteOpenMode.Memory || file.StartsWith("file:", StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        return Path.GetDirectoryName(Path.GetFullPath(file));
+    }
 }
