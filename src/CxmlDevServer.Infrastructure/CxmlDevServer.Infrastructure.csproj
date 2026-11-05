@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>CxmlDevServer.Infrastructure</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\CxmlDevServer.Core\CxmlDevServer.Core.csproj" />
+  </ItemGroup>
+
+</Project>

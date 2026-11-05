@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Cxml.Protocol/Cxml.Protocol.csproj" />
+    <Project Path="src/CxmlDevServer.Core/CxmlDevServer.Core.csproj" />
+    <Project Path="src/CxmlDevServer.Infrastructure/CxmlDevServer.Infrastructure.csproj" />
+    <Project Path="src/CxmlDevServer.Web/CxmlDevServer.Web.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Cxml.Protocol.Tests/Cxml.Protocol.Tests.csproj" />
+    <Project Path="tests/CxmlDevServer.Core.Tests/CxmlDevServer.Core.Tests.csproj" />
+    <Project Path="tests/CxmlDevServer.Web.Tests/CxmlDevServer.Web.Tests.csproj" />
+  </Folder>
+</Solution>
