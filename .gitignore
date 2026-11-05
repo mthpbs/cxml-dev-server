@@ -430,3 +430,8 @@ FodyWeavers.xsd
 # SQLite dev databases
 data/*.db*
 **/data/*.db*
+
+# Deployment: local self-host settings (secrets), backups and generated ARM templates
+deploy/selfhost/.env
+deploy/selfhost/backups/
+deploy/azure/*.json

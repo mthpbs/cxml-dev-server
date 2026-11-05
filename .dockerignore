@@ -16,6 +16,9 @@
 .github/
 .config/
 
+# Deployment assets (Bicep, self-hosted stack): not part of the image
+deploy/
+
 # Not needed to build the image
 tests/
 docs/
