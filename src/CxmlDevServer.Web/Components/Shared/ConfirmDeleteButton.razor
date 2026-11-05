@@ -1,0 +1,27 @@
+@* A delete button that asks for confirmation inline before it calls OnConfirmed. *@
+@if (_asking)
+{
+    <span class="d-inline-flex gap-1 align-items-center">
+        <span class="small text-danger">@Prompt</span>
+        <button type="button" class="btn btn-sm btn-danger" @onclick="ConfirmAsync">Delete</button>
+        <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="() => _asking = false">Keep</button>
+    </span>
+}
+else
+{
+    <button type="button" class="btn btn-sm btn-outline-danger" @onclick="() => _asking = true">@Label</button>
+}
+
+@code {
+    private bool _asking;
+
+    [Parameter] public string Label { get; set; } = "Delete";
+    [Parameter] public string Prompt { get; set; } = "Delete this entry?";
+    [Parameter] public EventCallback OnConfirmed { get; set; }
+
+    private async Task ConfirmAsync()
+    {
+        _asking = false;
+        await OnConfirmed.InvokeAsync();
+    }
+}

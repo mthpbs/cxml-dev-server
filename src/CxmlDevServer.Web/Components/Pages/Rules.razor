@@ -1,0 +1,24 @@
+@page "/rules"
+@using CxmlDevServer.Core.Rules
+@inject IEnumerable<IDocumentRule> RegisteredRules
+
+<PageHeader Title="Validation rules" Subtitle="Business rules checked on every inbound document, in addition to DTD validation. Add your own with AddDocumentRule.">
+</PageHeader>
+
+<div class="card table-card">
+    <div class="table-responsive-card">
+        <table class="table">
+            <thead><tr><th>Code</th><th>What it checks</th></tr></thead>
+            <tbody>
+            @foreach (var rule in RegisteredRules.OrderBy(r => r.Code))
+            {
+                <tr><td><code>@rule.Code</code></td><td>@rule.Description</td></tr>
+            }
+            </tbody>
+        </table>
+    </div>
+</div>
+<p class="small text-body-secondary mt-3">
+    How a finding is treated depends on the validation mode of the trading partner: <strong>Strict</strong> rejects documents with errors (406),
+    <strong>Lenient</strong> accepts them and records the issues, <strong>Off</strong> records nothing.
+</p>

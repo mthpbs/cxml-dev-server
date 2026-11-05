@@ -1,0 +1,281 @@
+@page "/scenarios"
+@using System.ComponentModel.DataAnnotations
+@using CxmlDevServer.Core.Handlers
+@inject UiData Data
+
+<PageHeader Title="Response scenarios" Subtitle="Make this server fail, stall or misbehave on purpose to test how your buyer system reacts.">
+    <Actions><button class="btn btn-primary" @onclick="NewScenario"><Icon Name="plus" Size="16" /> New scenario</button></Actions>
+</PageHeader>
+
+@if (_model is not null)
+{
+    <div class="card mb-4" id="scenario-editor">
+        <div class="card-header">@(_editingId is null ? "New scenario" : "Edit scenario")</div>
+        <div class="card-body">
+            <EditForm Model="_model" OnValidSubmit="SaveAsync" FormName="scenario-form">
+                <DataAnnotationsValidator />
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label" for="sc-name">Name</label>
+                        <InputText id="sc-name" class="form-control" @bind-Value="_model.Name" />
+                        <ValidationMessage For="() => _model.Name" />
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label" for="sc-priority">Priority</label>
+                        <InputNumber id="sc-priority" class="form-control" @bind-Value="_model.Priority" />
+                        <div class="form-text">The highest priority wins.</div>
+                    </div>
+                    <div class="col-md-3 d-flex align-items-center">
+                        <div class="form-check form-switch">
+                            <InputCheckbox id="sc-enabled" class="form-check-input" @bind-Value="_model.Enabled" />
+                            <label class="form-check-label" for="sc-enabled">Enabled</label>
+                        </div>
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label" for="sc-partner">Partner</label>
+                        <InputSelect id="sc-partner" class="form-select" @bind-Value="_model.PartnerId">
+                            <option value="">Any partner</option>
+                            @foreach (var p in _partners) { <option value="@p.Id">@p.Name</option> }
+                        </InputSelect>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label" for="sc-type">Document type</label>
+                        <InputSelect id="sc-type" class="form-select" @bind-Value="_model.DocumentType">
+                            @foreach (var t in _documentTypes) { <option value="@t">@(t == "*" ? "* (any document)" : t)</option> }
+                        </InputSelect>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label" for="sc-match">Request contains <span class="text-body-secondary">(optional)</span></label>
+                        <InputText id="sc-match" class="form-control" @bind-Value="_model.MatchContains" placeholder="e.g. an orderID" />
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label" for="sc-behavior">Behavior</label>
+                        <InputSelect id="sc-behavior" class="form-select" @bind-Value="_model.Behavior">
+                            <option value="@ScenarioBehavior.Respond">Respond with a status</option>
+                            <option value="@ScenarioBehavior.Passthrough">Delay only, then process normally</option>
+                            <option value="@ScenarioBehavior.MalformedBody">Answer with a malformed body</option>
+                            <option value="@ScenarioBehavior.NoResponse">Never answer (timeout)</option>
+                        </InputSelect>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label" for="sc-delay">Delay (ms)</label>
+                        <InputNumber id="sc-delay" class="form-control" @bind-Value="_model.DelayMs" />
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label" for="sc-uses">Remaining uses</label>
+                        <InputNumber id="sc-uses" class="form-control" @bind-Value="_model.RemainingUses" placeholder="unlimited" />
+                        <div class="form-text">Empty is unlimited.</div>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label" for="sc-http">HTTP status</label>
+                        <InputNumber id="sc-http" class="form-control" @bind-Value="_model.HttpStatus" placeholder="200" />
+                        <div class="form-text">Empty keeps 200.</div>
+                    </div>
+
+                    @if (_model.Behavior == ScenarioBehavior.Respond)
+                    {
+                        <div class="col-md-2">
+                            <label class="form-label" for="sc-code">cXML status code</label>
+                            <InputNumber id="sc-code" class="form-control" @bind-Value="_model.StatusCode" placeholder="500" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label" for="sc-text">Status text</label>
+                            <InputText id="sc-text" class="form-control" @bind-Value="_model.StatusText" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label" for="sc-detail">Status detail</label>
+                            <InputText id="sc-detail" class="form-control" @bind-Value="_model.StatusDetail" />
+                        </div>
+                    }
+                    else if (_model.Behavior == ScenarioBehavior.MalformedBody)
+                    {
+                        <div class="col-12">
+                            <label class="form-label" for="sc-body">Malformed body <span class="text-body-secondary">(empty: a truncated cXML document)</span></label>
+                            <InputTextArea id="sc-body" class="form-control mono" rows="4" @bind-Value="_model.MalformedBody" />
+                        </div>
+                    }
+                </div>
+                <ValidationSummary class="text-danger mt-3" />
+                <div class="mt-3 d-flex gap-2">
+                    <button type="submit" class="btn btn-primary">Save</button>
+                    <button type="button" class="btn btn-outline-secondary" @onclick="() => _model = null">Cancel</button>
+                </div>
+            </EditForm>
+        </div>
+    </div>
+}
+
+<div class="card table-card">
+    @if (_scenarios is null)
+    {
+        <EmptyState>Loading...</EmptyState>
+    }
+    else if (_scenarios.Count == 0)
+    {
+        <EmptyState>No scenarios yet. Add one to make the server fail on purpose.</EmptyState>
+    }
+    else
+    {
+        <div class="table-responsive-card">
+            <table class="table table-hover">
+                <thead><tr><th>On</th><th>Name</th><th>Matches</th><th>Does</th><th class="text-end">Priority</th><th class="text-end">Uses left</th><th class="text-end">Hits</th><th></th></tr></thead>
+                <tbody>
+                @foreach (var s in _scenarios)
+                {
+                    <tr class="@(s.Enabled ? null : "text-body-secondary")">
+                        <td><div class="form-check form-switch"><input type="checkbox" class="form-check-input" checked="@s.Enabled" @onchange="e => ToggleAsync(s.Id, (bool)e.Value!)" aria-label="Enabled" /></div></td>
+                        <td class="fw-semibold">@s.Name</td>
+                        <td>
+                            <div>@(s.Partner?.Name ?? "any partner"), @(s.DocumentType ?? "any document")</div>
+                            @if (!string.IsNullOrEmpty(s.MatchContains)) { <div class="small text-body-secondary">contains <code>@s.MatchContains</code></div> }
+                        </td>
+                        <td>
+                            @switch (s.Behavior)
+                            {
+                                case ScenarioBehavior.Respond:
+                                    <StatusBadge Code="@(s.StatusCode ?? 500)" />
+                                    @if (s.HttpStatus is { } http) { <span class="small text-body-secondary"> HTTP @http</span> }
+                                    break;
+                                case ScenarioBehavior.Passthrough: <span>Delay @s.DelayMs ms, then process</span> break;
+                                case ScenarioBehavior.MalformedBody: <span>Malformed body</span> break;
+                                default: <span>No response (timeout)</span> break;
+                            }
+                            @if (s.DelayMs > 0 && s.Behavior != ScenarioBehavior.Passthrough) { <span class="small text-body-secondary"> after @s.DelayMs ms</span> }
+                        </td>
+                        <td class="text-end">@s.Priority</td>
+                        <td class="text-end">@(s.RemainingUses?.ToString() ?? "unlimited")</td>
+                        <td class="text-end">@s.HitCount</td>
+                        <td class="text-end text-nowrap">
+                            <button class="btn btn-sm btn-outline-primary" @onclick="() => Edit(s)">Edit</button>
+                            <ConfirmDeleteButton Prompt="Delete?" OnConfirmed="() => DeleteAsync(s.Id)" />
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+@code {
+    private List<ResponseScenario>? _scenarios;
+    private List<TradingPartner> _partners = [];
+    private List<string> _documentTypes = ["*"];
+    private Model? _model;
+    private int? _editingId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var names = await Data.ScopeAsync(sp => Task.FromResult(sp.GetServices<ICxmlRequestHandler>().Select(h => h.RequestName).ToList()));
+        _documentTypes = ["*", .. names.Distinct().OrderBy(n => n)];
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        (_scenarios, _partners) = await Data.QueryAsync(async db => (
+            await db.ResponseScenarios.AsNoTracking().Include(s => s.Partner).OrderByDescending(s => s.Priority).ThenBy(s => s.Id).ToListAsync(),
+            await db.TradingPartners.AsNoTracking().OrderBy(p => p.Name).ToListAsync()));
+    }
+
+    private void NewScenario()
+    {
+        _editingId = null;
+        _model = new Model();
+    }
+
+    private void Edit(ResponseScenario s)
+    {
+        _editingId = s.Id;
+        _model = Model.From(s);
+    }
+
+    private async Task SaveAsync()
+    {
+        await Data.CommandAsync(async db =>
+        {
+            ResponseScenario scenario;
+            if (_editingId is null)
+            {
+                scenario = new ResponseScenario();
+                db.ResponseScenarios.Add(scenario);
+            }
+            else
+            {
+                scenario = await db.ResponseScenarios.FirstAsync(s => s.Id == _editingId);
+            }
+
+            _model!.CopyTo(scenario);
+            await db.SaveChangesAsync();
+        });
+        _model = null;
+        await LoadAsync();
+    }
+
+    private async Task ToggleAsync(int id, bool enabled)
+    {
+        await Data.CommandAsync(async db =>
+        {
+            var scenario = await db.ResponseScenarios.FirstOrDefaultAsync(s => s.Id == id);
+            if (scenario is not null)
+            {
+                scenario.Enabled = enabled;
+                await db.SaveChangesAsync();
+            }
+        });
+        await LoadAsync();
+    }
+
+    private async Task DeleteAsync(int id)
+    {
+        await Data.CommandAsync(async db =>
+        {
+            var scenario = await db.ResponseScenarios.FirstOrDefaultAsync(s => s.Id == id);
+            if (scenario is not null)
+            {
+                db.ResponseScenarios.Remove(scenario);
+                await db.SaveChangesAsync();
+            }
+        });
+        await LoadAsync();
+    }
+
+    private sealed class Model
+    {
+        [Required, StringLength(200)] public string Name { get; set; } = string.Empty;
+        public bool Enabled { get; set; } = true;
+        public int? PartnerId { get; set; }
+        public string DocumentType { get; set; } = "*";
+        public string? MatchContains { get; set; }
+        public int Priority { get; set; }
+        public int? RemainingUses { get; set; }
+        public ScenarioBehavior Behavior { get; set; } = ScenarioBehavior.Respond;
+        [Range(100, 599)] public int? StatusCode { get; set; } = 500;
+        public string? StatusText { get; set; }
+        public string? StatusDetail { get; set; }
+        [Range(100, 599)] public int? HttpStatus { get; set; }
+        [Range(0, 600_000)] public int DelayMs { get; set; }
+        public string? MalformedBody { get; set; }
+
+        public static Model From(ResponseScenario s) => new()
+        {
+            Name = s.Name, Enabled = s.Enabled, PartnerId = s.PartnerId, DocumentType = s.DocumentType ?? "*",
+            MatchContains = s.MatchContains, Priority = s.Priority, RemainingUses = s.RemainingUses, Behavior = s.Behavior,
+            StatusCode = s.StatusCode, StatusText = s.StatusText, StatusDetail = s.StatusDetail, HttpStatus = s.HttpStatus,
+            DelayMs = s.DelayMs, MalformedBody = s.MalformedBody,
+        };
+
+        public void CopyTo(ResponseScenario s)
+        {
+            s.Name = Name.Trim(); s.Enabled = Enabled; s.PartnerId = PartnerId;
+            s.DocumentType = DocumentType == "*" ? null : DocumentType;
+            s.MatchContains = Blank(MatchContains); s.Priority = Priority; s.RemainingUses = RemainingUses; s.Behavior = Behavior;
+            s.StatusCode = StatusCode; s.StatusText = Blank(StatusText); s.StatusDetail = Blank(StatusDetail);
+            s.HttpStatus = HttpStatus; s.DelayMs = DelayMs; s.MalformedBody = Blank(MalformedBody);
+        }
+
+        private static string? Blank(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    }
+}

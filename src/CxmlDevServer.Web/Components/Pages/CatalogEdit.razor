@@ -1,0 +1,210 @@
+@page "/catalog/new"
+@page "/catalog/{Id:int}"
+@using System.ComponentModel.DataAnnotations
+@inject UiData Data
+@inject NavigationManager Navigation
+
+<PageHeader Title="@(Id is null ? "New catalog item" : "Edit catalog item")">
+    <Actions><a class="btn btn-outline-secondary" href="catalog">Back to catalog</a></Actions>
+</PageHeader>
+
+@if (_notFound)
+{
+    <div class="alert alert-warning">This item does not exist. <a href="catalog">Back to the catalog</a>.</div>
+}
+else if (_model is not null)
+{
+    <EditForm Model="_model" OnValidSubmit="SaveAsync" FormName="catalog-form">
+        <DataAnnotationsValidator />
+        <div class="card">
+            <div class="card-body row g-3">
+                <div class="col-md-4">
+                    <label class="form-label" for="i-part">Supplier part ID</label>
+                    <InputText id="i-part" class="form-control" @bind-Value="_model.SupplierPartId" />
+                    <ValidationMessage For="() => _model.SupplierPartId" />
+                </div>
+                <div class="col-md-8">
+                    <label class="form-label" for="i-name">Name</label>
+                    <InputText id="i-name" class="form-control" @bind-Value="_model.ShortName" />
+                    <ValidationMessage For="() => _model.ShortName" />
+                </div>
+                <div class="col-12">
+                    <label class="form-label" for="i-desc">Description</label>
+                    <InputTextArea id="i-desc" class="form-control" rows="3" @bind-Value="_model.Description" />
+                    <ValidationMessage For="() => _model.Description" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label" for="i-price">Unit price</label>
+                    <InputNumber id="i-price" class="form-control" @bind-Value="_model.UnitPrice" />
+                    <ValidationMessage For="() => _model.UnitPrice" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label" for="i-currency">Currency</label>
+                    <InputText id="i-currency" class="form-control" @bind-Value="_model.Currency" />
+                    <ValidationMessage For="() => _model.Currency" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label" for="i-uom">Unit of measure</label>
+                    <InputText id="i-uom" class="form-control" @bind-Value="_model.UnitOfMeasure" />
+                    <ValidationMessage For="() => _model.UnitOfMeasure" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label" for="i-lead">Lead time (days)</label>
+                    <InputNumber id="i-lead" class="form-control" @bind-Value="_model.LeadTimeDays" />
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label" for="i-category">Category</label>
+                    <InputText id="i-category" class="form-control" @bind-Value="_model.Category" />
+                    <ValidationMessage For="() => _model.Category" />
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label" for="i-unspsc">UNSPSC</label>
+                    <InputText id="i-unspsc" class="form-control" @bind-Value="_model.Unspsc" />
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label" for="i-aux">Supplier part auxiliary ID</label>
+                    <InputText id="i-aux" class="form-control" @bind-Value="_model.SupplierPartAuxiliaryId" />
+                    <div class="form-text">Leave empty to generate one per item.</div>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label" for="i-mfr">Manufacturer</label>
+                    <InputText id="i-mfr" class="form-control" @bind-Value="_model.ManufacturerName" />
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label" for="i-mpn">Manufacturer part ID</label>
+                    <InputText id="i-mpn" class="form-control" @bind-Value="_model.ManufacturerPartId" />
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label" for="i-img">Image URL</label>
+                    <InputText id="i-img" class="form-control" @bind-Value="_model.ImageUrl" />
+                </div>
+                <div class="col-12">
+                    <div class="form-check form-switch">
+                        <InputCheckbox id="i-active" class="form-check-input" @bind-Value="_model.IsActive" />
+                        <label class="form-check-label" for="i-active">Active (shown in the shop)</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        @if (_error is not null)
+        {
+            <div class="alert alert-danger mt-3">@_error</div>
+        }
+        <div class="mt-4 d-flex gap-2">
+            <button type="submit" class="btn btn-primary">Save</button>
+            <a class="btn btn-outline-secondary" href="catalog">Cancel</a>
+            @if (Id is not null)
+            {
+                <span class="ms-auto"><ConfirmDeleteButton Prompt="Delete this item?" OnConfirmed="DeleteAsync" /></span>
+            }
+        </div>
+    </EditForm>
+}
+
+@code {
+    [Parameter] public int? Id { get; set; }
+
+    private Model? _model;
+    private bool _notFound;
+    private string? _error;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _notFound = false;
+        if (Id is null)
+        {
+            _model = new Model();
+            return;
+        }
+
+        var item = await Data.QueryAsync(db => db.CatalogItems.AsNoTracking().FirstOrDefaultAsync(i => i.Id == Id));
+        if (item is null)
+        {
+            _notFound = true;
+            return;
+        }
+
+        _model = Model.From(item);
+    }
+
+    private async Task SaveAsync()
+    {
+        _error = null;
+        try
+        {
+            await Data.CommandAsync(async db =>
+            {
+                CatalogItem item;
+                if (Id is null)
+                {
+                    item = new CatalogItem();
+                    db.CatalogItems.Add(item);
+                }
+                else
+                {
+                    item = await db.CatalogItems.FirstAsync(i => i.Id == Id);
+                }
+
+                _model!.CopyTo(item);
+                await db.SaveChangesAsync();
+            });
+            Navigation.NavigateTo("catalog");
+        }
+        catch (DbUpdateException)
+        {
+            _error = "The item could not be saved. The supplier part ID must be unique.";
+        }
+    }
+
+    private async Task DeleteAsync()
+    {
+        await Data.CommandAsync(async db =>
+        {
+            var item = await db.CatalogItems.FirstOrDefaultAsync(i => i.Id == Id);
+            if (item is not null)
+            {
+                db.CatalogItems.Remove(item);
+                await db.SaveChangesAsync();
+            }
+        });
+        Navigation.NavigateTo("catalog");
+    }
+
+    private sealed class Model
+    {
+        [Required, StringLength(100)] public string SupplierPartId { get; set; } = string.Empty;
+        public string? SupplierPartAuxiliaryId { get; set; }
+        [Required, StringLength(200)] public string ShortName { get; set; } = string.Empty;
+        [Required] public string Description { get; set; } = string.Empty;
+        [Range(0, 1_000_000_000)] public decimal UnitPrice { get; set; }
+        [Required, StringLength(3, MinimumLength = 3, ErrorMessage = "Use a 3-letter ISO 4217 currency code.")] public string Currency { get; set; } = "USD";
+        [Required] public string UnitOfMeasure { get; set; } = "EA";
+        public string? Unspsc { get; set; }
+        public string? ManufacturerName { get; set; }
+        public string? ManufacturerPartId { get; set; }
+        public int? LeadTimeDays { get; set; }
+        public string? ImageUrl { get; set; }
+        [Required] public string Category { get; set; } = string.Empty;
+        public bool IsActive { get; set; } = true;
+
+        public static Model From(CatalogItem i) => new()
+        {
+            SupplierPartId = i.SupplierPartId, SupplierPartAuxiliaryId = i.SupplierPartAuxiliaryId, ShortName = i.ShortName,
+            Description = i.Description, UnitPrice = i.UnitPrice, Currency = i.Currency, UnitOfMeasure = i.UnitOfMeasure,
+            Unspsc = i.Unspsc, ManufacturerName = i.ManufacturerName, ManufacturerPartId = i.ManufacturerPartId,
+            LeadTimeDays = i.LeadTimeDays, ImageUrl = i.ImageUrl, Category = i.Category, IsActive = i.IsActive,
+        };
+
+        public void CopyTo(CatalogItem i)
+        {
+            i.SupplierPartId = SupplierPartId.Trim(); i.SupplierPartAuxiliaryId = Blank(SupplierPartAuxiliaryId);
+            i.ShortName = ShortName.Trim(); i.Description = Description.Trim(); i.UnitPrice = UnitPrice;
+            i.Currency = Currency.Trim().ToUpperInvariant(); i.UnitOfMeasure = UnitOfMeasure.Trim();
+            i.Unspsc = Blank(Unspsc); i.ManufacturerName = Blank(ManufacturerName); i.ManufacturerPartId = Blank(ManufacturerPartId);
+            i.LeadTimeDays = LeadTimeDays; i.ImageUrl = Blank(ImageUrl); i.Category = Category.Trim(); i.IsActive = IsActive;
+        }
+
+        private static string? Blank(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    }
+}

@@ -1,0 +1,88 @@
+@page "/orders"
+@using Cxml.Protocol.Documents.Orders
+@inject UiData Data
+
+<PageHeader Title="Purchase orders" Subtitle="Orders received through OrderRequest documents." />
+
+<div class="card mb-3">
+    <div class="card-body filter-bar">
+        <div class="flex-grow-1" style="min-width: 14rem">
+            <label class="form-label" for="o-search">Order ID</label>
+            <input id="o-search" class="form-control" placeholder="Search by order ID" @bind="_text" @bind:event="oninput" @bind:after="FilterChangedAsync" />
+        </div>
+        <div style="min-width: 12rem">
+            <label class="form-label" for="o-status">Status</label>
+            <select id="o-status" class="form-select" @bind="_status" @bind:after="FilterChangedAsync">
+                <option value="">All</option>
+                @foreach (var s in Enum.GetValues<PurchaseOrderStatus>())
+                {
+                    <option value="@s">@s</option>
+                }
+            </select>
+        </div>
+    </div>
+</div>
+
+<div class="card table-card quickgrid-card">
+    <div class="table-responsive-card">
+        <QuickGrid @ref="_grid" ItemsProvider="_provider" Pagination="_pagination" Class="table table-hover">
+            <TemplateColumn Title="Order ID"><a href="orders/@context.Id" class="fw-semibold">@context.OrderId</a></TemplateColumn>
+            <TemplateColumn Title="Partner">@(context.PartnerName ?? "-")</TemplateColumn>
+            <TemplateColumn Title="Version">v@(context.Version)</TemplateColumn>
+            <TemplateColumn Title="Type">@context.Type.ToCxml()</TemplateColumn>
+            <TemplateColumn Title="Status"><span class="badge @StatusUi.OrderClass(context.Status)">@context.Status</span></TemplateColumn>
+            <TemplateColumn Title="Lines" Align="Align.Right">@context.LineCount</TemplateColumn>
+            <TemplateColumn Title="Total" Align="Align.Right">@Fmt.Money(context.Total, context.Currency)</TemplateColumn>
+            <TemplateColumn Title="Order date (UTC)"><span class="text-nowrap">@Fmt.Time(context.OrderDate)</span></TemplateColumn>
+            <TemplateColumn Title="Received (UTC)"><span class="text-nowrap">@Fmt.Time(context.UpdatedAt)</span></TemplateColumn>
+            <TemplateColumn Title=""><div class="text-end"><a class="btn btn-sm btn-outline-primary" href="orders/@context.Id">Details</a></div></TemplateColumn>
+        </QuickGrid>
+    </div>
+    <div class="grid-footer"><Paginator State="_pagination" /></div>
+</div>
+
+@code {
+    private sealed record Row(int Id, string OrderId, string? PartnerName, int Version, OrderRequestType Type, PurchaseOrderStatus Status,
+        int LineCount, decimal Total, string Currency, DateTimeOffset? OrderDate, DateTimeOffset UpdatedAt);
+
+    private QuickGrid<Row>? _grid;
+    private readonly PaginationState _pagination = new() { ItemsPerPage = 15 };
+    private GridItemsProvider<Row> _provider = default!;
+    private string _text = string.Empty;
+    private string _status = string.Empty;
+
+    protected override void OnInitialized()
+    {
+        _provider = async request => await Data.QueryAsync(async db =>
+        {
+            IQueryable<PurchaseOrder> query = db.PurchaseOrders.AsNoTracking();
+            if (!string.IsNullOrWhiteSpace(_text))
+            {
+                var text = _text.Trim();
+                query = query.Where(o => o.OrderId.Contains(text));
+            }
+
+            if (Enum.TryParse<PurchaseOrderStatus>(_status, out var status))
+            {
+                query = query.Where(o => o.Status == status);
+            }
+
+            var total = await query.CountAsync(request.CancellationToken);
+            var rows = await query.OrderByDescending(o => o.UpdatedAt).ThenByDescending(o => o.Id)
+                .Skip(request.StartIndex).Take(request.Count ?? 15)
+                .Select(o => new Row(o.Id, o.OrderId, o.Partner != null ? o.Partner.Name : null, o.Version, o.Type, o.Status,
+                    o.Lines.Count, o.TotalAmount, o.Currency, o.OrderDate, o.UpdatedAt))
+                .ToListAsync(request.CancellationToken);
+            return GridItemsProviderResult.From(rows, total);
+        });
+    }
+
+    private async Task FilterChangedAsync()
+    {
+        await _pagination.SetCurrentPageIndexAsync(0);
+        if (_grid is not null)
+        {
+            await _grid.RefreshDataAsync();
+        }
+    }
+}

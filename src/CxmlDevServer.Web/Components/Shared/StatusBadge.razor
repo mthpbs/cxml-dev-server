@@ -1,0 +1,23 @@
+@using CxmlDevServer.Web.Services
+@if (Code is null)
+{
+    <span class="badge text-bg-secondary">@(Empty ?? "none")</span>
+}
+else
+{
+    <span class="badge @StatusUi.CodeClass(Code)" title="@Title">@Code@(string.IsNullOrEmpty(Text) ? null : " " + Text)</span>
+}
+
+@code {
+    /// <summary>The cXML or HTTP status code; <c>null</c> shows a neutral badge.</summary>
+    [Parameter] public int? Code { get; set; }
+
+    /// <summary>Optional status text shown after the code.</summary>
+    [Parameter] public string? Text { get; set; }
+
+    /// <summary>Tooltip.</summary>
+    [Parameter] public string? Title { get; set; }
+
+    /// <summary>Label used when there is no code.</summary>
+    [Parameter] public string? Empty { get; set; }
+}

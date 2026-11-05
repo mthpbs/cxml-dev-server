@@ -1,0 +1,80 @@
+@using CxmlDevServer.Core.Domain
+@using CxmlDevServer.Web.Services
+<div class="card cart-panel">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span>Your cart</span>
+        <span class="badge text-bg-secondary" id="cart-count">@Lines.Count @(Lines.Count == 1 ? "line" : "lines")</span>
+    </div>
+    <div class="card-body">
+        @if (ReadOnly)
+        {
+            <div class="small text-body-secondary mb-2">This is an inspect session: the cart is read-only.</div>
+        }
+
+        @if (Lines.Count == 0)
+        {
+            <div class="text-body-secondary small py-2" id="cart-empty">The cart is empty.</div>
+        }
+
+        @foreach (var line in Lines)
+        {
+            <div class="cart-line" data-line-id="@line.Id">
+                <div class="d-flex justify-content-between gap-2">
+                    <div>
+                        <div class="fw-semibold">@line.ShortName</div>
+                        <div class="small text-body-secondary mono">@line.SupplierPartId</div>
+                    </div>
+                    <div class="text-end text-nowrap fw-semibold">@Fmt.Money(line.LineTotal, line.Currency)</div>
+                </div>
+                <div class="d-flex align-items-center gap-2 mt-2">
+                    @if (ReadOnly)
+                    {
+                        <span class="small">@Fmt.Quantity(line.Quantity) &times; @Fmt.Money(line.UnitPrice, line.Currency)</span>
+                    }
+                    else
+                    {
+                        <input type="number" class="form-control form-control-sm qty-input" min="0" step="1"
+                               value="@Fmt.Quantity(line.Quantity)" aria-label="Quantity of @line.ShortName"
+                               @onchange="e => ChangeQuantityAsync(line.Id, e.Value?.ToString())" />
+                        <span class="small text-body-secondary text-nowrap">&times; @Fmt.Money(line.UnitPrice, line.Currency)</span>
+                        <button type="button" class="btn btn-sm btn-link text-danger ms-auto p-0" @onclick="() => OnRemove.InvokeAsync(line.Id)">Remove</button>
+                    }
+                </div>
+            </div>
+        }
+
+        <div class="d-flex justify-content-between align-items-baseline border-top pt-3 mt-2">
+            <span>Total</span>
+            <span class="cart-total" id="cart-total">@Fmt.Money(Lines.Sum(l => l.LineTotal), Lines.FirstOrDefault()?.Currency ?? "USD")</span>
+        </div>
+    </div>
+    @if (Footer is not null)
+    {
+        <div class="card-footer bg-transparent">@Footer</div>
+    }
+</div>
+
+@code {
+    /// <summary>The cart lines.</summary>
+    [Parameter, EditorRequired] public IReadOnlyList<PunchOutCartLine> Lines { get; set; } = [];
+
+    /// <summary>True in inspect sessions: quantities cannot be changed.</summary>
+    [Parameter] public bool ReadOnly { get; set; }
+
+    /// <summary>Raised with the line id and the new quantity (zero removes the line).</summary>
+    [Parameter] public EventCallback<(int LineId, decimal Quantity)> OnQuantityChanged { get; set; }
+
+    /// <summary>Raised with the id of the line to remove.</summary>
+    [Parameter] public EventCallback<int> OnRemove { get; set; }
+
+    /// <summary>Content below the cart, for the buttons that leave the shop.</summary>
+    [Parameter] public RenderFragment? Footer { get; set; }
+
+    private async Task ChangeQuantityAsync(int lineId, string? text)
+    {
+        if (decimal.TryParse(text, System.Globalization.NumberStyles.Number, System.Globalization.CultureInfo.InvariantCulture, out var quantity))
+        {
+            await OnQuantityChanged.InvokeAsync((lineId, quantity));
+        }
+    }
+}

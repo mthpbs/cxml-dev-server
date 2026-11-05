@@ -3,10 +3,20 @@
   <PropertyGroup>
     <RootNamespace>CxmlDevServer.Web</RootNamespace>
     <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
+    <!-- Razor components are internal-facing UI; XML docs are required only for the hand-written public classes. -->
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Components.QuickGrid" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\CxmlDevServer.Infrastructure\CxmlDevServer.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="CxmlDevServer.Web.Tests" />
   </ItemGroup>
 
 </Project>

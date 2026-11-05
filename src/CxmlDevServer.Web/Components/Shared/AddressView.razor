@@ -1,0 +1,21 @@
+@using CxmlDevServer.Core.Orders
+@if (Address is null)
+{
+    <span class="text-body-secondary">Not provided.</span>
+}
+else
+{
+    <address class="mb-0">
+        <strong>@Address.Name</strong><br />
+        @foreach (var line in Address.DeliverTo) { @line <br /> }
+        @foreach (var line in Address.Street) { @line <br /> }
+        @($"{Address.PostalCode} {Address.City}".Trim())@(string.IsNullOrEmpty(Address.State) ? null : ", " + Address.State)<br />
+        @(string.IsNullOrEmpty(Address.Country) ? Address.IsoCountryCode : $"{Address.Country} ({Address.IsoCountryCode})")
+        @if (!string.IsNullOrEmpty(Address.Email)) { <br /><span class="text-body-secondary">@Address.Email</span> }
+        @if (!string.IsNullOrEmpty(Address.Phone)) { <br /><span class="text-body-secondary">@Address.Phone</span> }
+    </address>
+}
+
+@code {
+    [Parameter] public AddressSnapshot? Address { get; set; }
+}

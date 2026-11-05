@@ -1,0 +1,217 @@
+@page "/punchout/{Token}"
+@layout ShopLayout
+@using CxmlDevServer.Core.Catalog
+@using CxmlDevServer.Core.PunchOut
+@inject UiData Data
+
+<PageTitle>Dev Supplier Catalog</PageTitle>
+
+@if (_problem is not null)
+{
+    <div class="row justify-content-center">
+        <div class="col-lg-7">
+            <div class="card" id="shop-problem">
+                <div class="card-body p-4 text-center">
+                    <h1 class="h4">@_problem.Title</h1>
+                    <p class="text-body-secondary mb-0">@_problem.Message</p>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+else if (_session is not null)
+{
+    <div class="shop-banner d-flex flex-wrap justify-content-between gap-2 mb-4" id="shop-banner">
+        <span>
+            Shopping for <strong>@(_session.Partner?.Name ?? "your procurement system")</strong>
+            &middot; operation <strong>@_session.Operation.ToCxml()</strong>
+            @if (_session.IsReadOnly) { <span class="badge text-bg-secondary ms-1">read only</span> }
+        </span>
+        <span class="text-body-secondary">Session expires @Fmt.Time(_session.ExpiresAt) UTC</span>
+    </div>
+
+    @if (_notice is not null)
+    {
+        <div class="alert alert-@_noticeKind py-2" role="status">@_notice</div>
+    }
+
+    <div class="row g-4">
+        <div class="col-lg-8">
+            @if (!_session.IsReadOnly)
+            {
+                <div class="card mb-4">
+                    <div class="card-body filter-bar">
+                        <div class="flex-grow-1" style="min-width: 14rem">
+                            <label class="form-label" for="shop-search">Search</label>
+                            <input id="shop-search" class="form-control" placeholder="Search products" @bind="_text" @bind:event="oninput" @bind:after="SearchChangedAsync" />
+                        </div>
+                        <div style="min-width: 12rem">
+                            <label class="form-label" for="shop-category">Category</label>
+                            <select id="shop-category" class="form-select" @bind="_category" @bind:after="SearchChangedAsync">
+                                <option value="">All categories</option>
+                                @foreach (var c in _categories) { <option value="@c.Name">@c.Name (@c.ItemCount)</option> }
+                            </select>
+                        </div>
+                        <div style="min-width: 10rem">
+                            <label class="form-label" for="shop-sort">Sort by</label>
+                            <select id="shop-sort" class="form-select" @bind="_sort" @bind:after="SearchChangedAsync">
+                                <option value="@CatalogSort.Name">Name</option>
+                                <option value="@CatalogSort.PriceAscending">Price, low to high</option>
+                                <option value="@CatalogSort.PriceDescending">Price, high to low</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                @if (_results is { Items.Count: 0 })
+                {
+                    <div class="card"><EmptyState>No products match your search.</EmptyState></div>
+                }
+                else if (_results is not null)
+                {
+                    <div class="row g-3" id="product-grid">
+                        @foreach (var item in _results.Items)
+                        {
+                            <div class="col-sm-6 col-xl-4" @key="item.Id">
+                                <ProductCard Item="item" OnAdd="AddAsync" />
+                            </div>
+                        }
+                    </div>
+                    @if (_results.TotalPages > 1)
+                    {
+                        <div class="d-flex justify-content-center align-items-center gap-3 mt-4">
+                            <button class="btn btn-outline-secondary btn-sm" disabled="@(!_results.HasPrevious)" @onclick="() => GoToPageAsync(_results.Page - 1)">Previous</button>
+                            <span class="small text-body-secondary">Page @_results.Page of @_results.TotalPages</span>
+                            <button class="btn btn-outline-secondary btn-sm" disabled="@(!_results.HasNext)" @onclick="() => GoToPageAsync(_results.Page + 1)">Next</button>
+                        </div>
+                    }
+                }
+            }
+            else
+            {
+                <div class="card">
+                    <div class="card-body">
+                        <h2 class="h5">Inspecting a cart</h2>
+                        <p class="mb-0 text-body-secondary">Your procurement system opened this cart to look at it. Products cannot be added or changed in an inspect session. Close the window when you are done.</p>
+                    </div>
+                </div>
+            }
+        </div>
+
+        <div class="col-lg-4">
+            <CartPanel Lines="_session.Lines" ReadOnly="_session.IsReadOnly" OnQuantityChanged="ChangeQuantityAsync" OnRemove="RemoveAsync">
+                <Footer>
+                    @if (_session.IsReadOnly)
+                    {
+                        <form method="post" action="punchout/@Token/cancel" data-enhance="false" onsubmit="if (this.dataset.sent) { return false; } this.dataset.sent = '1';">
+                            <AntiforgeryToken />
+                            <button type="submit" class="btn btn-outline-secondary w-100" id="close-button">Close</button>
+                        </form>
+                    }
+                    else
+                    {
+                        <form method="post" action="punchout/@Token/checkout" data-enhance="false" onsubmit="if (this.dataset.sent) { return false; } this.dataset.sent = '1';">
+                            <AntiforgeryToken />
+                            <div class="form-check small mb-2">
+                                <input class="form-check-input" type="checkbox" name="review" id="review" />
+                                <label class="form-check-label text-body-secondary" for="review">Show me the cXML before returning</label>
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100" id="checkout-button" disabled="@(_session.Lines.Count == 0)">Return to procurement system</button>
+                        </form>
+                        <form method="post" action="punchout/@Token/cancel" data-enhance="false" class="mt-2" onsubmit="if (this.dataset.sent) { return false; } this.dataset.sent = '1';">
+                            <AntiforgeryToken />
+                            <button type="submit" class="btn btn-outline-secondary w-100" id="cancel-button">Cancel</button>
+                        </form>
+                    }
+                </Footer>
+            </CartPanel>
+        </div>
+    </div>
+}
+
+@code {
+    private sealed record Problem(string Title, string Message);
+
+    [Parameter] public string Token { get; set; } = string.Empty;
+
+    private PunchOutSession? _session;
+    private Problem? _problem;
+    private PagedResult<CatalogItem>? _results;
+    private IReadOnlyList<CategorySummary> _categories = [];
+    private string _text = string.Empty;
+    private string _category = string.Empty;
+    private CatalogSort _sort = CatalogSort.Name;
+    private string? _notice;
+    private string _noticeKind = "success";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _session = await Data.ScopeAsync(sp => sp.GetRequiredService<PunchOutService>().OpenAsync(Token));
+        }
+        catch (PunchOutSessionException ex)
+        {
+            _problem = ex.Error switch
+            {
+                PunchOutError.NotFound => new Problem("This PunchOut session does not exist", "The link may be mistyped or the session was removed. Start again from your procurement system."),
+                PunchOutError.Expired => new Problem("This PunchOut session has expired", "Go back to your procurement system and start a new PunchOut session."),
+                PunchOutError.Completed => new Problem("This PunchOut session is finished", "The cart was already returned to your procurement system (or the session was cancelled). Start a new PunchOut session to shop again."),
+                _ => new Problem("This PunchOut session cannot be used", ex.Message),
+            };
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(_session.SelectedSupplierPartId))
+        {
+            _text = _session.SelectedSupplierPartId;
+        }
+
+        if (!_session.IsReadOnly)
+        {
+            _categories = await Data.ScopeAsync(sp => sp.GetRequiredService<CatalogQueryService>().GetCategoriesAsync());
+            await SearchAsync(1);
+        }
+    }
+
+    private Task SearchChangedAsync() => SearchAsync(1);
+
+    private Task GoToPageAsync(int page) => SearchAsync(page);
+
+    private async Task SearchAsync(int page)
+    {
+        _results = await Data.ScopeAsync(sp => sp.GetRequiredService<CatalogQueryService>().SearchAsync(
+            new CatalogQuery(_text, string.IsNullOrEmpty(_category) ? null : _category, page, 9, _sort)));
+    }
+
+    private Task AddAsync((CatalogItem Item, decimal Quantity) request) =>
+        RunAsync(sp => sp.GetRequiredService<PunchOutService>().AddToCartAsync(Token, request.Item.Id, request.Quantity), $"Added {request.Item.ShortName} to your cart.");
+
+    private Task ChangeQuantityAsync((int LineId, decimal Quantity) change) =>
+        RunAsync(sp => sp.GetRequiredService<PunchOutService>().SetQuantityAsync(Token, change.LineId, change.Quantity), null);
+
+    private Task RemoveAsync(int lineId) =>
+        RunAsync(sp => sp.GetRequiredService<PunchOutService>().RemoveLineAsync(Token, lineId), "Removed the line from your cart.");
+
+    private async Task RunAsync(Func<IServiceProvider, Task> action, string? success)
+    {
+        _notice = null;
+        try
+        {
+            await Data.ScopeAsync(action);
+            _notice = success;
+            _noticeKind = "success";
+        }
+        catch (PunchOutSessionException ex)
+        {
+            _notice = ex.Message;
+            _noticeKind = "danger";
+        }
+
+        _session = await Data.ScopeAsync(sp => sp.GetRequiredService<PunchOutService>().GetSessionAsync(Token));
+        if (_session is null || !_session.IsOpenForShopping)
+        {
+            _problem = new Problem("This PunchOut session is no longer active", "It expired or was completed in another window.");
+        }
+    }
+}

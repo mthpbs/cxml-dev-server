@@ -1,0 +1,168 @@
+@page "/messages/{Id:int}"
+@using Cxml.Protocol.Validation
+@inject UiData Data
+
+@if (_message is null)
+{
+    @if (_loaded)
+    {
+        <PageHeader Title="Message not found" />
+        <div class="alert alert-warning">This log entry does not exist. <a href="messages">Back to the message log</a>.</div>
+    }
+}
+else
+{
+    <PageHeader Title="@($"Message #{_message.Id}")" Subtitle="@($"{_message.DocumentType}, {(_message.Direction == MessageDirection.Inbound ? "received" : "sent")} {Fmt.Time(_message.CreatedAt)} UTC")">
+        <Actions>
+            <a class="btn btn-primary" href="sender?fromLog=@_message.Id">Replay in sender</a>
+            <a class="btn btn-outline-secondary" href="messages">Back to log</a>
+        </Actions>
+    </PageHeader>
+
+    <div class="row g-4 mb-4">
+        <div class="col-lg-7">
+            <div class="card h-100">
+                <div class="card-header">Metadata</div>
+                <div class="card-body">
+                    <dl class="kv">
+                        <dt>Direction</dt><dd>@_message.Direction (@_message.Channel)</dd>
+                        <dt>Document</dt><dd>@_message.DocumentType</dd>
+                        <dt>Partner</dt><dd>@(_message.Partner?.Name ?? "-")</dd>
+                        <dt>HTTP status</dt><dd><StatusBadge Code="@_message.HttpStatus" /></dd>
+                        <dt>cXML status</dt><dd><StatusBadge Code="@_message.CxmlStatusCode" Text="@_message.CxmlStatusText" /></dd>
+                        <dt>Duration</dt><dd>@_message.DurationMs ms</dd>
+                        <dt>Payload ID</dt><dd class="small"><code>@(_message.PayloadId ?? "-")</code></dd>
+                        @if (!string.IsNullOrEmpty(_message.InReplyTo))
+                        {
+                            <dt>In reply to</dt><dd class="small"><code>@_message.InReplyTo</code></dd>
+                        }
+                        <dt>Remote</dt><dd>@(_message.RemoteEndpoint ?? "-")</dd>
+                        <dt>Content type</dt><dd>@(_message.ContentType ?? "-")</dd>
+                        <dt>Correlation</dt><dd class="small"><code>@(_message.CorrelationId ?? "-")</code></dd>
+                        @if (_scenarioName is not null)
+                        {
+                            <dt>Scenario</dt><dd><a href="scenarios">@_scenarioName</a></dd>
+                        }
+                        @if (!string.IsNullOrEmpty(_message.Notes))
+                        {
+                            <dt>Notes</dt><dd>@_message.Notes</dd>
+                        }
+                    </dl>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-5">
+            <div class="card h-100">
+                <div class="card-header">Correlated messages</div>
+                @if (_related.Count == 0)
+                {
+                    <EmptyState>No other messages share this correlation.</EmptyState>
+                }
+                else
+                {
+                    <div class="list-group list-group-flush">
+                        @foreach (var r in _related)
+                        {
+                            <a class="list-group-item list-group-item-action d-flex justify-content-between align-items-center" href="messages/@r.Id">
+                                <span>
+                                    <strong>@r.DocumentType</strong>
+                                    <span class="small text-body-secondary d-block">@Fmt.Time(r.CreatedAt) UTC, @(r.Direction == MessageDirection.Inbound ? "in" : "out")</span>
+                                </span>
+                                <StatusBadge Code="@(r.CxmlStatusCode ?? r.HttpStatus)" />
+                            </a>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="nav-tabs-app">
+                <button type="button" class="@(_tab == "request" ? "active" : null)" @onclick='() => _tab = "request"'>Request XML</button>
+                <button type="button" class="@(_tab == "response" ? "active" : null)" @onclick='() => _tab = "response"'>Response XML</button>
+            </div>
+            @if (_tab == "request")
+            {
+                <XmlViewer Xml="@_message.RawXml" />
+            }
+            else if (string.IsNullOrEmpty(_message.ResponseXml))
+            {
+                <EmptyState>No response was recorded for this message.</EmptyState>
+            }
+            else
+            {
+                <XmlViewer Xml="@_message.ResponseXml" />
+            }
+        </div>
+    </div>
+
+    <div class="card table-card">
+        <div class="card-header">Validation issues (@_message.Issues.Count)</div>
+        @if (_message.Issues.Count == 0)
+        {
+            <EmptyState>No validation issues.</EmptyState>
+        }
+        else
+        {
+            <div class="table-responsive-card">
+                <table class="table">
+                    <thead><tr><th>Severity</th><th>Code</th><th>Message</th><th>Line:Pos</th><th>Source</th></tr></thead>
+                    <tbody>
+                    @foreach (var issue in _message.Issues.OrderByDescending(i => i.Severity).ThenBy(i => i.Line))
+                    {
+                        <tr>
+                            <td><SeverityBadge Severity="issue.Severity" /></td>
+                            <td><code>@issue.Code</code></td>
+                            <td>@issue.Message</td>
+                            <td>@(issue.Line is null ? "-" : $"{issue.Line}:{issue.Position}")</td>
+                            <td>@issue.Source</td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private CxmlMessageLog? _message;
+    private bool _loaded;
+    private List<CxmlMessageLog> _related = [];
+    private string? _scenarioName;
+    private string _tab = "request";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _tab = "request";
+        (_message, _related, _scenarioName) = await Data.QueryAsync<(CxmlMessageLog?, List<CxmlMessageLog>, string?)>(async db =>
+        {
+            var message = await db.MessageLogs.AsNoTracking().Include(m => m.Partner).Include(m => m.Issues).FirstOrDefaultAsync(m => m.Id == Id);
+            if (message is null)
+            {
+                return (null, [], null);
+            }
+
+            var related = string.IsNullOrEmpty(message.CorrelationId)
+                ? []
+                : await db.MessageLogs.AsNoTracking()
+                    .Where(m => m.CorrelationId == message.CorrelationId && m.Id != message.Id)
+                    .OrderBy(m => m.CreatedAt).ThenBy(m => m.Id)
+                    .Select(m => new CxmlMessageLog
+                    {
+                        Id = m.Id, DocumentType = m.DocumentType, CreatedAt = m.CreatedAt, Direction = m.Direction,
+                        CxmlStatusCode = m.CxmlStatusCode, HttpStatus = m.HttpStatus,
+                    })
+                    .ToListAsync();
+            var scenario = message.ScenarioId is { } scenarioId
+                ? await db.ResponseScenarios.AsNoTracking().Where(s => s.Id == scenarioId).Select(s => s.Name).FirstOrDefaultAsync()
+                : null;
+            return (message, related, scenario);
+        });
+        _loaded = true;
+    }
+}

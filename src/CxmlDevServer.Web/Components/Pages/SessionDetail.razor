@@ -1,0 +1,174 @@
+@page "/sessions/{Id:int}"
+@inject UiData Data
+
+@if (_session is null)
+{
+    @if (_loaded)
+    {
+        <PageHeader Title="Session not found" />
+        <div class="alert alert-warning">This PunchOut session does not exist. <a href="sessions">Back to the list</a>.</div>
+    }
+}
+else
+{
+    var status = StatusUi.Effective(_session);
+    <PageHeader Title="@($"PunchOut session #{_session.Id}")" Subtitle="@($"{_session.Operation.ToCxml()} session for {_session.Partner?.Name ?? "an unknown partner"}")">
+        <Actions>
+            @if (status is PunchOutSessionStatus.Created or PunchOutSessionStatus.Opened)
+            {
+                <a class="btn btn-primary" href="punchout/@_session.Token" target="_blank" rel="noopener"><Icon Name="external" Size="16" /> Open shop</a>
+            }
+            <a class="btn btn-outline-secondary" href="sessions">Back to sessions</a>
+        </Actions>
+    </PageHeader>
+
+    <div class="row g-4">
+        <div class="col-lg-6">
+            <div class="card h-100">
+                <div class="card-header">Setup</div>
+                <div class="card-body">
+                    <dl class="kv">
+                        <dt>Status</dt><dd><span class="badge @StatusUi.SessionClass(status)">@status</span></dd>
+                        <dt>Partner</dt><dd>@(_session.Partner?.Name ?? "-")</dd>
+                        <dt>Operation</dt><dd>@_session.Operation.ToCxml()</dd>
+                        <dt>BuyerCookie</dt><dd><code>@_session.BuyerCookie</code></dd>
+                        <dt>BrowserFormPost</dt><dd>@(string.IsNullOrEmpty(_session.BrowserFormPostUrl) ? "-" : _session.BrowserFormPostUrl)</dd>
+                        <dt>Deployment mode</dt><dd>@(_session.DeploymentMode ?? "-")</dd>
+                        <dt>Buyer</dt><dd>@(_session.BuyerDomain is null ? "-" : $"{_session.BuyerDomain} / {_session.BuyerIdentity}")</dd>
+                        <dt>Setup payloadID</dt><dd class="small"><code>@_session.SetupPayloadId</code></dd>
+                        <dt>Token</dt><dd class="small"><code>@_session.Token</code></dd>
+                        <dt>Created</dt><dd>@Fmt.Time(_session.CreatedAt) UTC</dd>
+                        <dt>Opened</dt><dd>@Fmt.Time(_session.OpenedAt)</dd>
+                        <dt>Completed</dt><dd>@Fmt.Time(_session.CompletedAt)</dd>
+                        <dt>Expires</dt><dd>@Fmt.Time(_session.ExpiresAt) UTC</dd>
+                        @if (_session.SetupMessageLogId is { } setupLog)
+                        {
+                            <dt>Setup message</dt><dd><a href="messages/@setupLog">Log entry #@setupLog</a></dd>
+                        }
+                    </dl>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="card mb-4">
+                <div class="card-header">Contacts, ship-to and extrinsics sent by the buyer</div>
+                <div class="card-body">
+                    @if (_contacts.Count == 0 && _extrinsics.Count == 0 && _shipTo is null)
+                    {
+                        <span class="text-body-secondary">The setup request carried no contacts, ShipTo or extrinsics.</span>
+                    }
+                    @foreach (var c in _contacts)
+                    {
+                        <div class="mb-2"><span class="badge text-bg-secondary">@(c.Role ?? "contact")</span> <strong>@c.Name</strong> @string.Join(", ", c.Emails)</div>
+                    }
+                    @if (_shipTo is not null)
+                    {
+                        <div class="mb-2"><span class="badge text-bg-secondary">ShipTo</span> @_shipTo.Name, @string.Join(", ", _shipTo.Street) @_shipTo.PostalCode @_shipTo.City @_shipTo.Country</div>
+                    }
+                    @if (_extrinsics.Count > 0)
+                    {
+                        <dl class="kv mt-2">
+                            @foreach (var e in _extrinsics)
+                            {
+                                <dt>@e.Name</dt><dd>@e.Value</dd>
+                            }
+                        </dl>
+                    }
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-header">Timeline</div>
+                <div class="card-body">
+                    @if (_messages.Count == 0)
+                    {
+                        <span class="text-body-secondary">No correlated messages.</span>
+                    }
+                    else
+                    {
+                        <ul class="timeline">
+                            @foreach (var m in _messages)
+                            {
+                                <li>
+                                    <div class="small text-body-secondary">@Fmt.Time(m.CreatedAt) UTC, @(m.Direction == MessageDirection.Inbound ? "received" : "sent") via @m.Channel</div>
+                                    <a href="messages/@m.Id" class="fw-semibold">@m.DocumentType</a>
+                                    <StatusBadge Code="@(m.CxmlStatusCode ?? m.HttpStatus)" />
+                                    @if (!string.IsNullOrEmpty(m.Notes))
+                                    {
+                                        <div class="small text-body-secondary">@m.Notes</div>
+                                    }
+                                </li>
+                            }
+                        </ul>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card table-card mt-4">
+        <div class="card-header d-flex justify-content-between"><span>Cart</span><span class="fw-normal text-body-secondary">@_session.Lines.Count lines</span></div>
+        @if (_session.Lines.Count == 0)
+        {
+            <EmptyState>The cart is empty.</EmptyState>
+        }
+        else
+        {
+            <div class="table-responsive-card">
+                <table class="table">
+                    <thead><tr><th>#</th><th>Part</th><th>Name</th><th class="text-end">Qty</th><th>UoM</th><th class="text-end">Unit price</th><th class="text-end">Total</th></tr></thead>
+                    <tbody>
+                    @foreach (var l in _session.Lines)
+                    {
+                        <tr>
+                            <td>@l.LineNumber</td>
+                            <td><code>@l.SupplierPartId</code>@if (l.IsAdHoc) { <span class="badge text-bg-secondary ms-1">from buyer</span> }</td>
+                            <td>@l.ShortName</td>
+                            <td class="text-end">@Fmt.Quantity(l.Quantity)</td>
+                            <td>@l.UnitOfMeasure</td>
+                            <td class="text-end">@Fmt.Money(l.UnitPrice, l.Currency)</td>
+                            <td class="text-end">@Fmt.Money(l.LineTotal, l.Currency)</td>
+                        </tr>
+                    }
+                    </tbody>
+                    <tfoot><tr><th colspan="6" class="text-end">Total</th><th class="text-end">@Fmt.Money(_session.Lines.Sum(l => l.LineTotal), _session.Lines[0].Currency)</th></tr></tfoot>
+                </table>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private PunchOutSession? _session;
+    private bool _loaded;
+    private List<CxmlMessageLog> _messages = [];
+    private List<ContactSnapshot> _contacts = [];
+    private List<NameValueSnapshot> _extrinsics = [];
+    private AddressSnapshot? _shipTo;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        (_session, _messages) = await Data.QueryAsync(async db =>
+        {
+            var session = await db.PunchOutSessions.AsNoTracking().Include(s => s.Partner).Include(s => s.Lines.OrderBy(l => l.LineNumber))
+                .FirstOrDefaultAsync(s => s.Id == Id);
+            var messages = session is null
+                ? []
+                : await db.MessageLogs.AsNoTracking()
+                    .Where(m => m.CorrelationId == session.CorrelationId)
+                    .OrderBy(m => m.CreatedAt).ThenBy(m => m.Id)
+                    .Select(m => new CxmlMessageLog
+                    {
+                        Id = m.Id, CreatedAt = m.CreatedAt, Direction = m.Direction, Channel = m.Channel, DocumentType = m.DocumentType,
+                        CxmlStatusCode = m.CxmlStatusCode, HttpStatus = m.HttpStatus, Notes = m.Notes,
+                    })
+                    .ToListAsync();
+            return (session, messages);
+        });
+        _loaded = true;
+        _contacts = Snapshots.ListFromJson<ContactSnapshot>(_session?.ContactsJson);
+        _extrinsics = Snapshots.ListFromJson<NameValueSnapshot>(_session?.ExtrinsicsJson);
+        _shipTo = Snapshots.FromJson<AddressSnapshot>(_session?.ShipToJson);
+    }
+}

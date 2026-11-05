@@ -1,7 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <PackageReference Include="bunit" />
     <PackageReference Include="coverlet.collector" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio" />
@@ -13,6 +15,11 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\CxmlDevServer.Web\CxmlDevServer.Web.csproj" />
+  </ItemGroup>
+
+  <!-- The specification's OrderRequest example is posted to the server as-is. -->
+  <ItemGroup>
+    <None Include="..\..\cXML-spec\Examples\0-OrderRequest.xml" Link="Samples\0-OrderRequest.xml" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

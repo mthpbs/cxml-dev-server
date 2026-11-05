@@ -1,0 +1,265 @@
+@page "/partners/new"
+@page "/partners/{Id:int}"
+@using System.ComponentModel.DataAnnotations
+@inject UiData Data
+@inject NavigationManager Navigation
+
+<PageHeader Title="@(Id is null ? "New trading partner" : "Edit trading partner")"
+            Subtitle="Credentials must match the From and Sender of the documents your client sends.">
+    <Actions><a class="btn btn-outline-secondary" href="partners">Back to partners</a></Actions>
+</PageHeader>
+
+@if (_notFound)
+{
+    <div class="alert alert-warning">This trading partner does not exist. <a href="partners">Back to the list</a>.</div>
+}
+else if (_model is not null)
+{
+    <EditForm Model="_model" OnValidSubmit="SaveAsync" FormName="partner-form">
+        <DataAnnotationsValidator />
+        <div class="row g-4">
+            <div class="col-lg-7">
+                <div class="card mb-4">
+                    <div class="card-header">Identity</div>
+                    <div class="card-body row g-3">
+                        <div class="col-md-8">
+                            <label class="form-label" for="p-name">Name</label>
+                            <InputText id="p-name" class="form-control" @bind-Value="_model.Name" />
+                            <ValidationMessage For="() => _model.Name" />
+                        </div>
+                        <div class="col-md-4 d-flex align-items-end">
+                            <div class="form-check form-switch">
+                                <InputCheckbox id="p-active" class="form-check-input" @bind-Value="_model.IsActive" />
+                                <label class="form-check-label" for="p-active">Active</label>
+                            </div>
+                        </div>
+                        <div class="col-md-5">
+                            <label class="form-label" for="p-from-domain">From domain</label>
+                            <InputText id="p-from-domain" class="form-control" @bind-Value="_model.FromDomain" />
+                            <ValidationMessage For="() => _model.FromDomain" />
+                        </div>
+                        <div class="col-md-7">
+                            <label class="form-label" for="p-from-id">From identity</label>
+                            <InputText id="p-from-id" class="form-control" @bind-Value="_model.FromIdentity" />
+                            <ValidationMessage For="() => _model.FromIdentity" />
+                        </div>
+                        <div class="col-md-5">
+                            <label class="form-label" for="p-sender-domain">Sender domain</label>
+                            <InputText id="p-sender-domain" class="form-control" @bind-Value="_model.SenderDomain" />
+                            <ValidationMessage For="() => _model.SenderDomain" />
+                        </div>
+                        <div class="col-md-7">
+                            <label class="form-label" for="p-sender-id">Sender identity</label>
+                            <InputText id="p-sender-id" class="form-control" @bind-Value="_model.SenderIdentity" />
+                            <ValidationMessage For="() => _model.SenderIdentity" />
+                        </div>
+                        <div class="col-md-5">
+                            <label class="form-label" for="p-to-domain">Expected To domain <span class="text-body-secondary">(optional)</span></label>
+                            <InputText id="p-to-domain" class="form-control" @bind-Value="_model.ToDomain" />
+                        </div>
+                        <div class="col-md-7">
+                            <label class="form-label" for="p-to-id">Expected To identity <span class="text-body-secondary">(optional)</span></label>
+                            <InputText id="p-to-id" class="form-control" @bind-Value="_model.ToIdentity" />
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">Notes</div>
+                    <div class="card-body">
+                        <InputTextArea class="form-control" rows="3" @bind-Value="_model.Notes" />
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-5">
+                <div class="card mb-4">
+                    <div class="card-header">Authentication and validation</div>
+                    <div class="card-body row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label" for="p-auth">Authentication</label>
+                            <InputSelect id="p-auth" class="form-select" @bind-Value="_model.AuthMode">
+                                <option value="@AuthMode.SharedSecret">Shared secret</option>
+                                <option value="@AuthMode.None">None (identify only)</option>
+                            </InputSelect>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label" for="p-validation">Validation mode</label>
+                            <InputSelect id="p-validation" class="form-select" @bind-Value="_model.ValidationMode">
+                                @foreach (var mode in Enum.GetValues<ValidationMode>())
+                                {
+                                    <option value="@mode">@mode</option>
+                                }
+                            </InputSelect>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label" for="p-secret">Shared secret</label>
+                            <div class="input-group">
+                                <InputText id="p-secret" type="@(_showSecret ? "text" : "password")" class="form-control" @bind-Value="_model.SharedSecret" autocomplete="off" />
+                                <button type="button" class="btn btn-outline-secondary" @onclick="() => _showSecret = !_showSecret">@(_showSecret ? "Hide" : "Show")</button>
+                            </div>
+                            <div class="form-text">Compared with the SharedSecret in the Sender credential.</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">PunchOut</div>
+                    <div class="card-body row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label" for="p-encoding">Post encoding</label>
+                            <InputSelect id="p-encoding" class="form-select" @bind-Value="_model.PunchOutPostEncoding">
+                                <option value="@PunchOutPostEncoding.Base64">cXML-base64</option>
+                                <option value="@PunchOutPostEncoding.UrlEncoded">cXML-urlencoded</option>
+                            </InputSelect>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label" for="p-operation">operationAllowed</label>
+                            <InputSelect id="p-operation" class="form-select" @bind-Value="_model.OperationAllowed">
+                                <option value="@PunchOutOperation.Create">create</option>
+                                <option value="@PunchOutOperation.Inspect">inspect</option>
+                                <option value="@PunchOutOperation.Edit">edit</option>
+                                <option value="@PunchOutOperation.Source">source</option>
+                            </InputSelect>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label" for="p-deployment">Deployment mode</label>
+                            <InputSelect id="p-deployment" class="form-select" @bind-Value="_model.DeploymentMode">
+                                <option value="">Accept both</option>
+                                <option value="test">test</option>
+                                <option value="production">production</option>
+                            </InputSelect>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <ValidationSummary class="text-danger mt-3" />
+        @if (_error is not null)
+        {
+            <div class="alert alert-danger mt-3">@_error</div>
+        }
+        <div class="mt-4 d-flex gap-2">
+            <button type="submit" class="btn btn-primary">Save</button>
+            <a class="btn btn-outline-secondary" href="partners">Cancel</a>
+            @if (Id is not null)
+            {
+                <span class="ms-auto"><ConfirmDeleteButton Prompt="Delete this partner?" OnConfirmed="DeleteAsync" /></span>
+            }
+        </div>
+    </EditForm>
+}
+
+@code {
+    [Parameter] public int? Id { get; set; }
+
+    private Model? _model;
+    private bool _notFound;
+    private bool _showSecret;
+    private string? _error;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _notFound = false;
+        if (Id is null)
+        {
+            _model = new Model();
+            return;
+        }
+
+        var partner = await Data.QueryAsync(db => db.TradingPartners.AsNoTracking().FirstOrDefaultAsync(p => p.Id == Id));
+        if (partner is null)
+        {
+            _notFound = true;
+            return;
+        }
+
+        _model = Model.From(partner);
+    }
+
+    private async Task SaveAsync()
+    {
+        _error = null;
+        try
+        {
+            await Data.CommandAsync(async db =>
+            {
+                TradingPartner partner;
+                if (Id is null)
+                {
+                    partner = new TradingPartner();
+                    db.TradingPartners.Add(partner);
+                }
+                else
+                {
+                    partner = await db.TradingPartners.FirstAsync(p => p.Id == Id);
+                }
+
+                _model!.CopyTo(partner);
+                await db.SaveChangesAsync();
+            });
+            Navigation.NavigateTo("partners");
+        }
+        catch (DbUpdateException ex)
+        {
+            _error = "The partner could not be saved: " + (ex.InnerException?.Message ?? ex.Message);
+        }
+    }
+
+    private async Task DeleteAsync()
+    {
+        await Data.CommandAsync(async db =>
+        {
+            var partner = await db.TradingPartners.FirstOrDefaultAsync(p => p.Id == Id);
+            if (partner is not null)
+            {
+                db.TradingPartners.Remove(partner);
+                await db.SaveChangesAsync();
+            }
+        });
+        Navigation.NavigateTo("partners");
+    }
+
+    private sealed class Model
+    {
+        [Required, StringLength(200)] public string Name { get; set; } = string.Empty;
+        public bool IsActive { get; set; } = true;
+        [Required] public string FromDomain { get; set; } = "NetworkId";
+        [Required] public string FromIdentity { get; set; } = string.Empty;
+        [Required] public string SenderDomain { get; set; } = "NetworkId";
+        [Required] public string SenderIdentity { get; set; } = string.Empty;
+        public string? ToDomain { get; set; }
+        public string? ToIdentity { get; set; }
+        public string? SharedSecret { get; set; }
+        public AuthMode AuthMode { get; set; } = AuthMode.SharedSecret;
+        public ValidationMode ValidationMode { get; set; } = ValidationMode.Lenient;
+        public PunchOutPostEncoding PunchOutPostEncoding { get; set; } = PunchOutPostEncoding.Base64;
+        public PunchOutOperation OperationAllowed { get; set; } = PunchOutOperation.Create;
+        public string? DeploymentMode { get; set; }
+        public string? Notes { get; set; }
+
+        public static Model From(TradingPartner p) => new()
+        {
+            Name = p.Name, IsActive = p.IsActive, FromDomain = p.FromDomain, FromIdentity = p.FromIdentity,
+            SenderDomain = p.SenderDomain, SenderIdentity = p.SenderIdentity, ToDomain = p.ToDomain, ToIdentity = p.ToIdentity,
+            SharedSecret = p.SharedSecret, AuthMode = p.AuthMode, ValidationMode = p.ValidationMode,
+            PunchOutPostEncoding = p.PunchOutPostEncoding, OperationAllowed = p.OperationAllowed,
+            DeploymentMode = p.DeploymentMode, Notes = p.Notes,
+        };
+
+        public void CopyTo(TradingPartner p)
+        {
+            p.Name = Name.Trim(); p.IsActive = IsActive;
+            p.FromDomain = FromDomain.Trim(); p.FromIdentity = FromIdentity.Trim();
+            p.SenderDomain = SenderDomain.Trim(); p.SenderIdentity = SenderIdentity.Trim();
+            p.ToDomain = Blank(ToDomain); p.ToIdentity = Blank(ToIdentity);
+            p.SharedSecret = string.IsNullOrEmpty(SharedSecret) ? null : SharedSecret;
+            p.AuthMode = AuthMode; p.ValidationMode = ValidationMode;
+            p.PunchOutPostEncoding = PunchOutPostEncoding; p.OperationAllowed = OperationAllowed;
+            p.DeploymentMode = Blank(DeploymentMode); p.Notes = Blank(Notes);
+        }
+
+        private static string? Blank(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    }
+}

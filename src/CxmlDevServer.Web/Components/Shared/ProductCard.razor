@@ -1,0 +1,58 @@
+@using CxmlDevServer.Web.Services
+<div class="card product-card">
+    @if (!string.IsNullOrEmpty(Item.ImageUrl))
+    {
+        <img src="@Item.ImageUrl" alt="@Item.ShortName" class="product-img" style="object-fit: cover" />
+    }
+    else
+    {
+        <div class="product-img" aria-hidden="true">@Initials(Item.Category)</div>
+    }
+    <div class="card-body">
+        <div class="product-meta">@Item.Category</div>
+        <div class="product-name mb-1">@Item.ShortName</div>
+        <div class="small text-body-secondary mb-2">@Item.Description</div>
+        <div class="product-meta mb-2">
+            Part <span class="mono">@Item.SupplierPartId</span>
+            @if (!string.IsNullOrEmpty(Item.ManufacturerName)) { <span> &middot; @Item.ManufacturerName</span> }
+            @if (Item.LeadTimeDays is { } days) { <span> &middot; ships in @days @(days == 1 ? "day" : "days")</span> }
+        </div>
+        <div class="d-flex align-items-baseline gap-2 mb-3">
+            <span class="product-price">@Fmt.Money(Item.UnitPrice, Item.Currency)</span>
+            <span class="product-meta">per @Item.UnitOfMeasure</span>
+        </div>
+        @if (!ReadOnly)
+        {
+            <div class="add-row">
+                <input type="number" class="form-control" min="1" step="1" @bind="_quantity" aria-label="Quantity" />
+                <button type="button" class="btn btn-primary flex-grow-1" @onclick="AddAsync">Add to cart</button>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private decimal _quantity = 1;
+
+    /// <summary>The catalog item shown.</summary>
+    [Parameter, EditorRequired] public CxmlDevServer.Core.Domain.CatalogItem Item { get; set; } = default!;
+
+    /// <summary>True in inspect sessions: no add button.</summary>
+    [Parameter] public bool ReadOnly { get; set; }
+
+    /// <summary>Raised with the item and the chosen quantity.</summary>
+    [Parameter] public EventCallback<(CxmlDevServer.Core.Domain.CatalogItem Item, decimal Quantity)> OnAdd { get; set; }
+
+    private async Task AddAsync()
+    {
+        var quantity = _quantity <= 0 ? 1 : _quantity;
+        _quantity = 1;
+        await OnAdd.InvokeAsync((Item, quantity));
+    }
+
+    private static string Initials(string category)
+    {
+        var words = category.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return words.Length == 0 ? "?" : string.Concat(words.Take(2).Select(w => char.ToUpperInvariant(w[0])));
+    }
+}
