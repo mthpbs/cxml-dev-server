@@ -50,6 +50,10 @@ The server identifies a request by the `Header` of the cXML document:
 | `To/Credential` | a *Supplier identity*, or the partner's optional *Expected To* | `DUNS` / `123456789` (also `DUNS` / `942888711`) |
 | `Request@deploymentMode` | the partner's *Deployment mode* if set (a mismatch is a warning) | `test` or `production` |
 
+The "Seeded value" column describes the demo partner. In the deployed environments (Docker Compose, Azure) the
+demo partners are normally switched off (`Cxml:SeedDemoPartners=false`) and you create your own partner with
+its own secret first; see the [new-environment checklist](deployment/configuration.md#new-environment-checklist).
+
 Matching is case-insensitive. If the same buyer system sends several credentials in `From` (a marketplace
 and the member organisation), any one of them can match.
 
@@ -71,7 +75,9 @@ In the supplier / PunchOut catalog configuration of your system enter:
 | Return method for the cart | form post (`cXML-base64` preferred) |
 
 Your system must be able to reach the server: if it runs in the cloud, expose the server through a tunnel or
-reverse proxy and set `Cxml:PublicBaseUrl` (see [Troubleshooting](#start-page-url-is-wrong-behind-a-proxy-or-in-docker)).
+reverse proxy and set `Cxml:PublicBaseUrl` (see [Troubleshooting](#start-page-url-is-wrong-behind-a-proxy-or-in-docker)). The ready-made
+[deployments](deployment/README.md) already put HTTPS in front of the server; the URL to enter is then
+`https://<your-host>/cxml`.
 The reverse also matters: the browser that opens the StartPage must reach the server, and the server's
 returned form must reach your system's `BrowserFormPost` URL *from the browser* (it is posted by the user's
 browser, not by the server).
@@ -249,16 +255,20 @@ without items); in *Lenient* mode the same cases are accepted with a warning.
 ### Start page URL is wrong (behind a proxy or in Docker)
 
 The `StartPage` URL in the `PunchOutSetupResponse` is built from the request the server sees: scheme, host
-and port. Behind a reverse proxy that terminates TLS, in a container, or through a tunnel, that is often not
-what the buyer's browser can reach (`http://localhost:8080/punchout/...` instead of
-`https://dev.example.com/punchout/...`). Set the externally visible base URL:
+and port. The Docker image honours `X-Forwarded-For` and `X-Forwarded-Proto`
+(`ASPNETCORE_FORWARDEDHEADERS_ENABLED=true`), so behind a proxy that sends them and keeps the original `Host`
+header (Caddy, Azure Container Apps) the URL is already `https://...`. It is still wrong when the proxy does
+not send `X-Forwarded-Proto`, rewrites `Host`, uses another port or path prefix, or the server runs
+without the image (`http://localhost:8080/punchout/...` instead of `https://dev.example.com/punchout/...`).
+`X-Forwarded-Host` is not evaluated. Set the externally visible base URL:
 
 ```bash
 Cxml__PublicBaseUrl=https://dev.example.com dotnet run --project src/CxmlDevServer.Web
 ```
 
 or in `appsettings.json`: `"Cxml": { "PublicBaseUrl": "https://dev.example.com" }`, or `-e Cxml__PublicBaseUrl=...`
-for Docker. The setting is also used for the URLs in `ProfileResponse` and the `BrowserFormPost` of the
+for Docker (the self-hosted stack takes it from `CXML_PUBLIC_BASE_URL`, see
+[deployment/configuration.md](deployment/configuration.md#forwarded-headers-and-publicbaseurl)). The setting is also used for the URLs in `ProfileResponse` and the `BrowserFormPost` of the
 sender templates. If the server is served below a path prefix, include it (`https://host/cxml-dev`).
 
 ### The cart never arrives at the buyer

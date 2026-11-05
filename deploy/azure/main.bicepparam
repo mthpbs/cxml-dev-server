@@ -2,7 +2,7 @@
 //
 // Values that differ per deployment, and all secrets, come from environment variables (readEnvironmentVariable):
 //   CONTAINER_IMAGE       full image reference, e.g. ghcr.io/<owner>/cxml-dev-server:1.2.0
-//   ADMIN_PASSWORD_HASH   output of: docker run --rm <image> hash-password          (required while adminEnabled = true)
+//   ADMIN_PASSWORD_HASH   output of: docker run --rm -it <image> hash-password          (required while adminEnabled = true)
 //   REGISTRY_SERVER       default ghcr.io                                  REGISTRY_USERNAME / REGISTRY_PASSWORD   private images only
 //   AZURE_LOCATION        region (empty: region of the resource group)
 //   PUBLIC_BASE_URL       custom-domain URL, e.g. https://cxml.contoso.com (empty: derived from the request)

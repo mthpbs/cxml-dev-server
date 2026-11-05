@@ -8,7 +8,8 @@
 // Usage (current az CLI with the Bicep tooling; the resource group must exist). Secrets and the image are read from environment variables by
 // main.bicepparam (readEnvironmentVariable), so they never appear in a file or on a command line:
 //   export CONTAINER_IMAGE=ghcr.io/<owner>/cxml-dev-server:<tag>
-//   export ADMIN_PASSWORD_HASH="$(docker run --rm "$CONTAINER_IMAGE" hash-password)"
+//   read -rs -p 'Admin password: ' PW; echo
+//   export ADMIN_PASSWORD_HASH="$(printf '%s' "$PW" | docker run --rm -i "$CONTAINER_IMAGE" hash-password)"; unset PW
 //   export REGISTRY_USERNAME=<github user> REGISTRY_PASSWORD=<token with read:packages>    # only for a private image
 //   az deployment group create --resource-group <rg> --parameters deploy/azure/main.bicepparam
 // (The other parameters are edited in main.bicepparam. Some az versions also accept extra inline "key=value" arguments
@@ -132,7 +133,7 @@ param adminEnabled bool = true
 param adminUsername string = 'admin'
 
 @secure()
-@description('Password hash of the admin account (Admin__PasswordHash). REQUIRED when adminEnabled is true. Create it with: docker run --rm <image> hash-password. Stored as a container app secret.')
+@description('Password hash of the admin account (Admin__PasswordHash). REQUIRED when adminEnabled is true. Create it with: docker run --rm -it <image> hash-password. Stored as a container app secret.')
 param adminPasswordHash string = ''
 
 @description('Externally visible base URL (Cxml__PublicBaseUrl), for example https://cxml.contoso.com. Set it when a custom domain or another proxy sits in front. Empty: derived from the request, which is correct for the default azurecontainerapps.io URL.')

@@ -65,6 +65,7 @@ docker run --rm -p 8080:8080 -v cxml-data:/app/data cxml-dev-server
 
 or `docker compose up --build`. The server listens on port 8080 in the container; the database lives in the
 `/app/data` volume. See the comments in the [Dockerfile](Dockerfile) and [docker-compose.yml](docker-compose.yml).
+This root compose file is for local development only; for a shared environment see [Deployment](#deployment).
 
 ## Try it in 2 minutes
 
@@ -157,6 +158,9 @@ Created on the first start of an empty database (editable in the UI under *Tradi
 | Trading partner `From` | Acme (spec example) | `AribaNetworkUserId` | `admin@acme.com` | none |
 | Trading partner `Sender` | Acme (spec example) | `AribaNetworkUserId` | `sysadmin@ariba.com` | `abracadabra` |
 
+These demo partners (with their well-known secrets) exist only when `Cxml:SeedDemoPartners` is `true`, the
+default for local runs; the deployment templates turn it off.
+
 Both partners use Lenient validation. "Demo Buyer" returns PunchOut carts as `cXML-base64` and allows `edit`;
 "Acme (spec example)" returns `cXML-urlencoded` and allows `create`. A disabled sample scenario ("fail the first
 3 OrderRequests with 500") is seeded as well, plus about 25 catalog items.
@@ -218,6 +222,22 @@ login. The login is rate limited (5 attempts per minute and client address). The
 `healthcheck [url]`, which exits 0 for a 2xx answer and 1 otherwise (default `http://127.0.0.1:8080/health`),
 for container health checks in images without curl.
 
+## Deployment
+
+For shared use by procurement and integration teams there are two ready-made deployments, both with the admin
+login turned on and HTTPS in front of the app:
+
+| Option | Data | Start here |
+|---|---|---|
+| **Self-hosted Docker Compose**: app + Caddy (automatic HTTPS) + scheduled SQLite backups, in [`deploy/selfhost`](deploy/selfhost) | Persistent volume and backups | [docs/deployment/self-hosted.md](docs/deployment/self-hosted.md) |
+| **Azure Container Apps**: Bicep template in [`deploy/azure`](deploy/azure) and a GitHub Actions workflow that builds the image, publishes it to GHCR and deploys | Ephemeral: reset on every restart or deployment | [docs/deployment/azure-container-apps.md](docs/deployment/azure-container-apps.md) |
+
+[docs/deployment/README.md](docs/deployment/README.md) compares the options (with architecture diagrams), and
+[docs/deployment/configuration.md](docs/deployment/configuration.md) lists every setting and gives the
+checklist for configuring a new environment (supplier identities, trading partners with strong secrets,
+validation modes, connection details for buyer teams). CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml))
+builds, tests and validates the deployment assets on every pull request.
+
 ## Project layout
 
 ```
@@ -231,7 +251,8 @@ tests/
   CxmlDevServer.Core.Tests/      pipeline, handlers, scenarios (SQLite in memory)
   CxmlDevServer.Web.Tests/       HTTP integration tests and component tests
 cXML-spec/                       the cXML specification, examples and DTDs (the DTDs are embedded in the build)
-docs/                            architecture, extending, client setup
+deploy/                          Azure Container Apps (Bicep) and self-hosted Compose stack
+docs/                            architecture, extending, client setup, deployment runbooks
 ```
 
 Dependencies point one way: Web, then Infrastructure, then Core, then Protocol.
@@ -252,4 +273,6 @@ The Web tests host the real application against a temporary SQLite file; no exte
 - [docs/architecture.md](docs/architecture.md): layers, the inbound pipeline, PunchOut and order flows, data model,
   validation, authentication, logging.
 - [docs/extending.md](docs/extending.md): add a transaction, rule, pipeline step, UI page or migration.
+- [docs/deployment/](docs/deployment/README.md): deploy to Azure Container Apps or a self-hosted Docker host,
+  configuration reference, backups, and the new-environment checklist.
 - [cXML-spec/](cXML-spec/): the cXML specification this server implements.

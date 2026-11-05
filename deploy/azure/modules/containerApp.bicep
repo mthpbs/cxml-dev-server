@@ -103,7 +103,7 @@ param adminEnabled bool = true
 param adminUsername string = 'admin'
 
 @secure()
-@description('Admin password hash (Admin__PasswordHash), created with: docker run --rm <image> hash-password. Stored as the container app secret "admin-password-hash".')
+@description('Admin password hash (Admin__PasswordHash), created with: docker run --rm -it <image> hash-password. Stored as the container app secret "admin-password-hash".')
 param adminPasswordHash string = ''
 
 @description('Externally visible base URL (Cxml__PublicBaseUrl), for example https://cxml.contoso.com. Empty: derived from the request (correct for the default *.azurecontainerapps.io URL).')

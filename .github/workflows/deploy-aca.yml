@@ -6,7 +6,7 @@
 # Required in the GitHub environment (or repository) - Settings > Secrets and variables > Actions:
 #   secrets:   AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID   Entra app with a federated credential for this
 #                                                                          repository/environment (OIDC, no stored password)
-#              ADMIN_PASSWORD_HASH                                         output of: docker run --rm <image> hash-password
+#              ADMIN_PASSWORD_HASH                                         output of: docker run --rm -it <image> hash-password
 #   variables: AZURE_RESOURCE_GROUP                                        existing resource group to deploy into
 # Optional:
 #   secrets:   GHCR_PULL_TOKEN                                             PAT with read:packages; only if the GHCR package is private
@@ -153,7 +153,7 @@ jobs:
             exit 1
           fi
           if [ -z "$ADMIN_PASSWORD_HASH" ]; then
-            echo "::error::Set the secret ADMIN_PASSWORD_HASH (docker run --rm <image> hash-password)."
+            echo "::error::Set the secret ADMIN_PASSWORD_HASH (docker run --rm -it <image> hash-password)."
             exit 1
           fi
           echo "Deploying $CONTAINER_IMAGE to resource group $RESOURCE_GROUP"

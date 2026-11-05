@@ -12,6 +12,7 @@ authentication and logging work. Type and file names refer to the code in `src/`
 - [Data model](#data-model)
 - [Validation](#validation)
 - [Authentication](#authentication)
+- [Admin login, proxies and data protection](#admin-login-proxies-and-data-protection)
 - [Logging and correlation](#logging-and-correlation)
 
 ## Layers and dependencies
@@ -298,6 +299,62 @@ buyer organisation, `To` names the supplier.
    (`AUTH-MAC-NOT-VERIFIED`).
 
 A `PunchOutOrderMessage` carries no trusted credentials; the buyer decides whom to believe.
+
+## Admin login, proxies and data protection
+
+The section above is about the *cXML sender*, who is authenticated per document. The browser-facing admin UI
+has its own, separate and optional access control (settings in
+[deployment/configuration.md](deployment/configuration.md)).
+
+### Admin login
+
+With `Admin:Enabled=false` (the default) nothing changes: the `Admin` authorization policy exists but lets
+everybody in, so local runs and the tests need no login. With `Admin:Enabled=true`:
+
+- **Cookie authentication** (`AdminAuthExtensions`): one account (`Admin:Username`) verified against
+  `Admin:PasswordHash`, an ASP.NET Core Identity `PasswordHasher` hash produced by the `hash-password` command
+  (or the plain `Admin:Password` fallback, compared in constant time). The user name and password are always
+  both compared, so a failure does not say which was wrong. The cookie `cxml-dev-admin` is `HttpOnly`,
+  `SameSite=Lax`, `Secure` when the request is HTTPS, with a sliding expiry of `Admin:SessionHours`.
+- **Which pages**: every admin page carries `[Authorize(Policy = "Admin")]`; `Shop`, `NotFound`, `Error` and
+  `Login` are `[AllowAnonymous]`. `Routes.razor` uses `AuthorizeRouteView`; an unauthorized visitor gets
+  `RedirectToLogin`, a forced page load to `/login?returnUrl=...` (a `302` for a first request). The
+  Blazor hub (`/_blazor`) stays reachable and authorization is enforced per component, so an anonymous
+  circuit can render only the anonymous pages.
+- **What stays open, with no authorization at all**: the minimal-API endpoints `/cxml`, `/punchout/*`
+  (checkout and cancel), `/test-buyer/*` and `/health`, plus static assets. Buyer systems authenticate there
+  with the cXML credentials (see above), and the shop is protected by its random session token.
+- **Login page and endpoint**: `/login` is static server rendering (`[ExcludeFromInteractiveRouting]`; `App.razor`
+  picks the render mode with `HttpContext.AcceptsInteractiveRouting()`) and posts a form to
+  `POST /account/login`. That endpoint validates the antiforgery token, is rate limited (fixed window, 5
+  attempts per minute and client address, then `429`) and redirects only to local return URLs.
+  `POST /account/logout` clears the cookie.
+- **Fail fast**: `AdminOptions` is validated at start-up. An enabled login without a (valid) hash or
+  password stops the application with a message, so it never runs open by accident.
+
+### Reverse proxies and forwarded headers
+
+The deployments run the container behind a TLS-terminating proxy (Azure Container Apps ingress, Caddy), so
+the application sees plain HTTP. `ASPNETCORE_FORWARDEDHEADERS_ENABLED=true` (set in the image) makes the
+default host add the forwarded headers middleware for `X-Forwarded-For` and `X-Forwarded-Proto` with the known
+proxy networks cleared. Consequences:
+
+- `Request.Scheme` is `https`, so the `StartPage` URL, which `PunchOutSetupHandler` builds from the request
+  base URL, and the `Secure` flag of the login cookie are right. `X-Forwarded-Host` is **not** processed: the
+  proxy must keep the original `Host` header, otherwise set `Cxml:PublicBaseUrl`, which always wins over the
+  request-derived base URL (`CxmlServerOptions.ResolveBaseUrl`).
+- The client address in logs, in the message log and in the login rate limiter is the forwarded one.
+- Because any peer is trusted, the application port must only be reachable from the proxy; otherwise a client
+  could forge its address and scheme.
+
+### Data Protection keys
+
+Antiforgery tokens (the login form, the PunchOut checkout), the login cookie and Blazor circuit state use
+ASP.NET Core Data Protection. `DataProtectionSetup` stores the keys in `DataProtection:KeysPath` (default: a
+`keys` folder next to the SQLite file, `/app/data/keys` in the image) under the fixed application name
+`CxmlDevServer`, so they survive restarts when the data does. An empty `KeysPath` keeps them in memory (a
+warning is logged) and every restart then signs everybody out and invalidates open forms. On Azure Container
+Apps the folder is part of the ephemeral volume, so administrators sign in again after each restart.
 
 ## Logging and correlation
 
