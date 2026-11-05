@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    A supplier would send this Request after receiving the Order Request
+    document or after sending a Confirmation Request (once the shipment has
+    left the loading dock).  For the scenarios shown in this example, a
+    Ship Notice would not follow the confirmations in
+    2-ConfirmationRequest.xml (complete rejection) or
+    3-ConfirmationRequest.xml (due to the substitution).  In those cases,
+    the next document should be an Order Request from the buyer.
+
+    Relatively simple, this does not use the Hazard, PackageIdentification,
+    Route or ShipNoticeItem (and therefore Packaging) elements.
+-->
+<!DOCTYPE cXML SYSTEM "http://xml.cXML.org/schemas/cXML/1.2.071/Fulfill.dtd">
+<cXML payloadID="1233444-2004@premier.workchairs.com"
+      xml:lang="en-CA" timestamp="2000-10-14T08:39:29-08:00">
+    <Header>
+        <From>
+            <Credential domain="DUNS">
+                <Identity>942888711</Identity>
+            </Credential>
+        </From>
+        <To>
+            <!-- The buying marketplace and member organization. -->
+            <Credential domain="AribaNetworkUserId" type="marketplace">
+                <Identity>bigadmin@marketplace.org</Identity>
+            </Credential>
+            <Credential domain="AribaNetworkUserId">
+                <Identity>admin@acme.com</Identity>
+            </Credential>
+        </To>
+        <Sender>
+            <!-- The supplier -->
+            <Credential domain="DUNS">
+                <Identity>942888711</Identity>
+                <SharedSecret>coyote</SharedSecret>
+            </Credential>
+            <UserAgent>Workchairs Order Entry</UserAgent>
+        </Sender>
+    </Header>
+    <Request deploymentMode="test">
+      <ShipNoticeRequest>
+        <ShipNoticeHeader shipmentID="S89823-123" noticeDate="2000-10-14T23:59:20-08:00"
+                          shipmentDate="2000-10-14T08:30:19-08:00"
+                          deliveryDate="2000-10-18T09:00:00-08:00">
+           <Contact role="shipFrom">
+             <Name xml:lang="en-CA">Workchairs, Vancouver</Name>
+             <PostalAddress>
+               <Street>432 Lake Drive</Street>
+               <City>Vancouver</City>
+               <State>BC</State>
+               <PostalCode>B3C 2G4</PostalCode>
+               <Country isoCountryCode="CA">Canada</Country>
+             </PostalAddress>
+             <Phone>
+               <TelephoneNumber>
+                 <CountryCode isoCountryCode="CA">1</CountryCode>
+                 <AreaOrCityCode>201</AreaOrCityCode>
+                 <Number>921-1132</Number>
+               </TelephoneNumber>
+             </Phone>
+           </Contact>
+           <Comments xml:lang="en-CA">Got it all into one shipment.
+           </Comments>
+        </ShipNoticeHeader>
+        <ShipControl>
+          <CarrierIdentifier domain="SCAC">FDE</CarrierIdentifier>
+          <CarrierIdentifier domain="companyName">Federal Express
+          </CarrierIdentifier>
+          <ShipmentIdentifier>8202 8261 1194</ShipmentIdentifier>
+        </ShipControl>
+        <ShipNoticePortion>
+          <!-- The orderID and orderDate attributes are not required in the
+               OrderReference element. -->
+          <OrderReference orderID="DO1234">
+            <DocumentReference payloadID="32232995@ariba.acme.com" />
+          </OrderReference>
+        </ShipNoticePortion>
+      </ShipNoticeRequest>
+    </Request>
+</cXML>

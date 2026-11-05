@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Wait a little while, then reject everything. -->
+<!DOCTYPE cXML SYSTEM "http://xml.cXML.org/schemas/cXML/1.2.071/Fulfill.dtd">
+<cXML payloadID="1233444-2003@premier.workchairs.com"
+      xml:lang="en-CA" timestamp="2000-10-14T09:22:29-08:00">
+    <Header>
+        <From>
+            <Credential domain="DUNS">
+                <Identity>942888711</Identity>
+            </Credential>
+        </From>
+        <To>
+            <!-- The buying marketplace and member organization. -->
+            <Credential domain="AribaNetworkUserId" type="marketplace">
+                <Identity>bigadmin@marketplace.org</Identity>
+            </Credential>
+            <Credential domain="AribaNetworkUserId">
+                <Identity>admin@acme.com</Identity>
+            </Credential>
+        </To>
+        <Sender>
+            <!-- The supplier -->
+            <Credential domain="DUNS">
+                <Identity>942888711</Identity>
+                <SharedSecret>coyote</SharedSecret>
+            </Credential>
+            <UserAgent>Workchairs Order Entry</UserAgent>
+        </Sender>
+    </Header>
+    <Request deploymentMode="test">
+      <ConfirmationRequest>
+        <ConfirmationHeader type="reject" noticeDate="2000-10-14">
+           <Comments xml:lang="en-CA">Sorry, it's a Tuesday.</Comments>
+        </ConfirmationHeader>
+        <!-- The orderID and orderDate attributes are not required in the
+             OrderReference element. -->
+        <OrderReference orderID="DO1234">
+          <DocumentReference payloadID="32232995@ariba.acme.com" />
+        </OrderReference>
+      </ConfirmationRequest>
+    </Request>
+</cXML>

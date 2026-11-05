@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Wait a little while, then be choosy. -->
+<!DOCTYPE cXML SYSTEM "http://xml.cXML.org/schemas/cXML/1.2.071/Fulfill.dtd">
+<cXML payloadID="1233444-2002@premier.workchairs.com"
+      xml:lang="en-CA" timestamp="2000-10-13T10:22:29-08:00">
+    <Header>
+        <From>
+            <Credential domain="DUNS">
+                <Identity>942888711</Identity>
+            </Credential>
+        </From>
+        <To>
+            <!-- The buying marketplace and member organization. -->
+            <Credential domain="AribaNetworkUserId" type="marketplace">
+                <Identity>bigadmin@marketplace.org</Identity>
+            </Credential>
+            <Credential domain="AribaNetworkUserId">
+                <Identity>admin@acme.com</Identity>
+            </Credential>
+        </To>
+        <Sender>
+            <!-- The supplier -->
+            <Credential domain="DUNS">
+                <Identity>942888711</Identity>
+                <SharedSecret>coyote</SharedSecret>
+            </Credential>
+            <UserAgent>Workchairs Order Entry</UserAgent>
+        </Sender>
+    </Header>
+    <Request deploymentMode="test">
+      <ConfirmationRequest>
+        <ConfirmationHeader type="detail" noticeDate="2000-10-12T23:59:20-08:00"
+                            invoiceID="I1010-10-12">
+           <!--
+               Update total cost due to reduced quantities and packaging
+               discounts.
+           -->
+           <Total>
+             <Money currency="USD">182.68</Money>
+           </Total>
+           <Shipping>
+             <Money currency="USD">2.5</Money>
+             <Description xml:lang="en-CA">FedEx 2-day</Description>
+           </Shipping>
+           <Tax>
+             <Money currency="USD">0.19</Money>
+             <Description xml:lang="en-CA">CA Sales Tax</Description>
+           </Tax>
+           <Contact role="shipFrom">
+             <Name xml:lang="en-CA">Workchairs, Vancouver</Name>
+             <PostalAddress>
+               <Street>432 Lake Drive</Street>
+               <City>Vancouver</City>
+               <State>BC</State>
+               <PostalCode>B3C 2G4</PostalCode>
+               <Country isoCountryCode="CA">Canada</Country>
+             </PostalAddress>
+             <Phone>
+               <TelephoneNumber>
+                 <CountryCode isoCountryCode="CA">1</CountryCode>
+                 <AreaOrCityCode>201</AreaOrCityCode>
+                 <Number>921-1132</Number>
+               </TelephoneNumber>
+             </Phone>
+           </Contact>
+           <Comments xml:lang="en-CA">See below for details.</Comments>
+        </ConfirmationHeader>
+        <!-- The orderID and orderDate attributes are not required in the
+             OrderReference element. -->
+        <OrderReference orderID="DO1234">
+          <DocumentReference payloadID="32232995@ariba.acme.com" />
+        </OrderReference>
+        <ConfirmationItem lineNumber="1" quantity="10">
+          <UnitOfMeasure>EA</UnitOfMeasure>
+          <ConfirmationStatus quantity="3" type="reject">
+            <UnitOfMeasure>EA</UnitOfMeasure>
+            <Comments xml:lang="en-CA">Can't quite source 10.</Comments>
+          </ConfirmationStatus>
+          <ConfirmationStatus quantity="7" type="accept"
+                              shipmentDate="2000-10-13T18:41:29-08:00"
+                              deliveryDate="2000-10-18T18:41:29-08:00">
+            <UnitOfMeasure>EA</UnitOfMeasure>
+            <Comments xml:lang="en-CA">The balance are fine.</Comments>
+          </ConfirmationStatus>
+        </ConfirmationItem>
+        <ConfirmationItem lineNumber="4" quantity="20">
+          <UnitOfMeasure>EA</UnitOfMeasure>
+          <ConfirmationStatus quantity="10" type="accept"
+                              shipmentDate="2000-10-13T18:41:29-08:00"
+                              deliveryDate="2000-10-18T18:41:29-08:00">
+            <UnitOfMeasure>EA</UnitOfMeasure>
+            <Comments xml:lang="en-CA">These we have in stock.</Comments>
+          </ConfirmationStatus>
+          <ConfirmationStatus quantity="10" type="detail"
+                              shipmentDate="2000-11-13T18:41:29-08:00"
+                              deliveryDate="2000-11-18T18:41:29-08:00">
+            <UnitOfMeasure>EA</UnitOfMeasure>
+            <Comments xml:lang="en-CA">These will come a bit slower.
+            </Comments>
+          </ConfirmationStatus>
+        </ConfirmationItem>
+        <ConfirmationItem lineNumber="5" quantity="30">
+          <UnitOfMeasure>EA</UnitOfMeasure>
+          <ConfirmationStatus quantity="30" type="detail"
+                              shipmentDate="2000-10-13T18:41:29-08:00"
+                              deliveryDate="2000-10-18T18:41:29-08:00">
+            <UnitOfMeasure>EA</UnitOfMeasure>
+            <ItemIn quantity="3" lineNumber="5">
+                 <ItemID>
+                     <SupplierPartID>1234246</SupplierPartID>
+                 </ItemID>
+                 <ItemDetail>
+                    <UnitPrice>
+                        <Money currency="USD">39.90</Money>
+                    </UnitPrice>
+                    <Description xml:lang="en">item 5b, box of 10
+                    </Description>
+                    <UnitOfMeasure>BX</UnitOfMeasure>
+                    <Classification domain="SPSC">12347</Classification>
+                    <ManufacturerPartID>246</ManufacturerPartID>
+                    <ManufacturerName>foobar</ManufacturerName>
+                    <URL>www.foo.com</URL>
+                 </ItemDetail>
+            </ItemIn>
+            <Comments xml:lang="en-CA">Does this substitution work for you?
+            </Comments>
+          </ConfirmationStatus>
+        </ConfirmationItem>
+      </ConfirmationRequest>
+    </Request>
+</cXML>

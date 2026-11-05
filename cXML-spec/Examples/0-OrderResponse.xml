@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- The Order Response is sent by the Workchairs order entry system. -->
+<!DOCTYPE cXML SYSTEM "http://xml.cXML.org/schemas/cXML/1.2.071/cXML.dtd">
+<cXML payloadID="1232424-2001@premier.workchairs.com" xml:lang="en-CA"
+      timestamp="2000-10-12T18:39:42-08:00">
+    <Response>
+        <Status code="200" text="OK"/>
+    </Response>
+</cXML>

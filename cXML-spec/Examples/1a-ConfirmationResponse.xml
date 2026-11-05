@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    All other Response documents for these examples (those that don't
+    explicitly appear in this directory) would be identical to this file.
+    Of course, each such document would have a unique payloadID value and
+    appropriate timestamp.  Ariba CSN originates all Confirmation Response
+    and Ship Notice Response documents (simple Response documents in all
+    cases).
+-->
+<!DOCTYPE cXML SYSTEM "http://xml.cXML.org/schemas/cXML/1.2.071/Fulfill.dtd">
+<cXML payloadID="9949494-2201@ariba.com" xml:lang="en-US"
+      timestamp="2000-10-12T18:41:53-08:00">
+    <Response>
+        <Status code="200" text="OK"/>
+    </Response>
+</cXML>
