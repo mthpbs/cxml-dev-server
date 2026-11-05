@@ -1,0 +1,7 @@
+@using Cxml.Protocol.Validation
+@using CxmlDevServer.Web.Services
+<span class="badge @StatusUi.SeverityClass(Severity)">@Severity</span>
+
+@code {
+    [Parameter, EditorRequired] public ValidationSeverity Severity { get; set; }
+}

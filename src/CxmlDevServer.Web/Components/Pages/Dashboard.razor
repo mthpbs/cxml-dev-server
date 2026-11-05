@@ -1,0 +1,136 @@
+@page "/"
+@attribute [Authorize(Policy = AdminAuthExtensions.PolicyName)]
+@inject UiData Data
+@inject UiUrls Urls
+
+<PageHeader Title="Dashboard" Subtitle="A cXML supplier simulator for testing PunchOut and OrderRequest from your procurement system.">
+    <Actions>
+        <a class="btn btn-primary" href="sender?template=punchout-setup-create"><Icon Name="send" Size="16" /> Send a test PunchOut</a>
+        <a class="btn btn-outline-primary" href="sender?template=order-request">Send a test order</a>
+    </Actions>
+</PageHeader>
+
+@if (_stats is null)
+{
+    <p class="text-body-secondary">Loading...</p>
+}
+else
+{
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-md-4 col-xl-2"><div class="card stat-card"><a href="partners"><div class="stat-label">Trading partners</div><div class="stat-value">@_stats.Partners</div><div class="stat-hint">active</div></a></div></div>
+        <div class="col-6 col-md-4 col-xl-2"><div class="card stat-card"><a href="catalog"><div class="stat-label">Catalog items</div><div class="stat-value">@_stats.CatalogItems</div><div class="stat-hint">active</div></a></div></div>
+        <div class="col-6 col-md-4 col-xl-2"><div class="card stat-card"><a href="sessions"><div class="stat-label">PunchOut sessions</div><div class="stat-value">@_stats.ActiveSessions</div><div class="stat-hint">active now</div></a></div></div>
+        <div class="col-6 col-md-4 col-xl-2"><div class="card stat-card"><a href="orders"><div class="stat-label">Purchase orders</div><div class="stat-value">@_stats.Orders</div><div class="stat-hint">received</div></a></div></div>
+        <div class="col-6 col-md-4 col-xl-2"><div class="card stat-card"><a href="messages"><div class="stat-label">Messages</div><div class="stat-value">@_stats.Messages24h</div><div class="stat-hint">last 24 hours</div></a></div></div>
+        <div class="col-6 col-md-4 col-xl-2"><div class="card stat-card @(_stats.Errors24h > 0 ? "stat-danger" : null)"><a href="messages?status=error"><div class="stat-label">Errors</div><div class="stat-value">@_stats.Errors24h</div><div class="stat-hint">last 24 hours</div></a></div></div>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-xl-7">
+            <div class="card table-card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span>Recent messages</span>
+                    <a class="small" href="messages">View all</a>
+                </div>
+                @if (_recent.Count == 0)
+                {
+                    <EmptyState>No messages yet. Point your client at the endpoint on the right, or use the <a href="sender">message sender</a>.</EmptyState>
+                }
+                else
+                {
+                    <div class="table-responsive-card">
+                        <table class="table table-hover">
+                            <thead><tr><th>Time (UTC)</th><th>Dir</th><th>Document</th><th>Partner</th><th>Status</th></tr></thead>
+                            <tbody>
+                            @foreach (var m in _recent)
+                            {
+                                <tr>
+                                    <td class="text-nowrap"><a href="messages/@m.Id">@Fmt.Time(m.CreatedAt)</a></td>
+                                    <td>@(m.Direction == MessageDirection.Inbound ? "in" : "out")</td>
+                                    <td>@m.DocumentType</td>
+                                    <td>@(m.PartnerName ?? "-")</td>
+                                    <td><StatusBadge Code="@(m.CxmlStatusCode ?? m.HttpStatus)" /></td>
+                                </tr>
+                            }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <div class="col-xl-5">
+            <div class="card mb-4">
+                <div class="card-header">Connect your client</div>
+                <div class="card-body">
+                    <p class="small text-body-secondary mb-2">Send PunchOutSetupRequest, OrderRequest and ProfileRequest documents by HTTP POST to:</p>
+                    <CopyField Value="@Urls.CxmlEndpoint" />
+                    <p class="small text-body-secondary mt-3 mb-2">A GET on the same URL answers with a ping. Supplier identities this server answers to (the <code>To</code> credential):</p>
+                    <ul class="list-unstyled mb-3 small">
+                        @foreach (var identity in _identities)
+                        {
+                            <li><span class="badge text-bg-secondary">@identity.Domain</span> <code>@identity.Identity</code> @identity.Name @(identity.IsDefault ? "(default)" : null)</li>
+                        }
+                    </ul>
+                    <p class="small text-body-secondary mb-2">Seeded trading partners (the <code>Sender</code> credential and shared secret):</p>
+                    @foreach (var partner in _partners)
+                    {
+                        <div class="border rounded-3 p-2 mb-2 small">
+                            <div class="fw-semibold">@partner.Name @if (!partner.IsActive) { <span class="badge text-bg-secondary">inactive</span> }</div>
+                            <div><span class="text-body-secondary">From:</span> <code>@partner.FromDomain</code> / <code>@partner.FromIdentity</code></div>
+                            <div><span class="text-body-secondary">Sender:</span> <code>@partner.SenderDomain</code> / <code>@partner.SenderIdentity</code></div>
+                            <div><span class="text-body-secondary">Secret:</span> <code>@(partner.AuthMode == AuthMode.SharedSecret ? partner.SharedSecret : "(none required)")</code></div>
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">Quick links</div>
+                <div class="list-group list-group-flush">
+                    <a class="list-group-item list-group-item-action" href="sender?template=punchout-setup-create">Send a test PunchOut (create)</a>
+                    <a class="list-group-item list-group-item-action" href="sender?template=order-request">Send a test OrderRequest</a>
+                    <a class="list-group-item list-group-item-action" href="scenarios">Make the server fail on purpose (scenarios)</a>
+                    <a class="list-group-item list-group-item-action" href="catalog">Edit the catalog</a>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private sealed record Stats(int Partners, int CatalogItems, int ActiveSessions, int Orders, int Messages24h, int Errors24h);
+    private sealed record RecentMessage(int Id, DateTimeOffset CreatedAt, MessageDirection Direction, string DocumentType, string? PartnerName, int? CxmlStatusCode, int? HttpStatus);
+
+    private Stats? _stats;
+    private List<RecentMessage> _recent = [];
+    private List<SupplierIdentity> _identities = [];
+    private List<TradingPartner> _partners = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Data.QueryAsync(async db =>
+        {
+            var since = DateTimeOffset.UtcNow.AddHours(-24);
+            var now = DateTimeOffset.UtcNow;
+            _stats = new Stats(
+                await db.TradingPartners.CountAsync(p => p.IsActive),
+                await db.CatalogItems.CountAsync(i => i.IsActive),
+                await db.PunchOutSessions.CountAsync(s =>
+                    (s.Status == PunchOutSessionStatus.Created || s.Status == PunchOutSessionStatus.Opened) && s.ExpiresAt > now),
+                await db.PurchaseOrders.CountAsync(),
+                await db.MessageLogs.CountAsync(m => m.CreatedAt >= since),
+                await db.MessageLogs.CountAsync(m => m.CreatedAt >= since
+                    && ((m.CxmlStatusCode != null && m.CxmlStatusCode >= 400) || (m.HttpStatus != null && m.HttpStatus >= 400))));
+            _recent = await db.MessageLogs.AsNoTracking()
+                .OrderByDescending(m => m.CreatedAt).ThenByDescending(m => m.Id)
+                .Take(8)
+                .Select(m => new RecentMessage(m.Id, m.CreatedAt, m.Direction, m.DocumentType,
+                    m.Partner != null ? m.Partner.Name : null, m.CxmlStatusCode, m.HttpStatus))
+                .ToListAsync();
+            _identities = await db.SupplierIdentities.AsNoTracking().OrderByDescending(i => i.IsDefault).ThenBy(i => i.Id).ToListAsync();
+            _partners = await db.TradingPartners.AsNoTracking().OrderBy(p => p.Id).Take(4).ToListAsync();
+            return 0;
+        });
+    }
+}

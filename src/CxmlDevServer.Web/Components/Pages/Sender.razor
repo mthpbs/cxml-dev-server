@@ -1,0 +1,172 @@
+@page "/sender"
+@attribute [Authorize(Policy = AdminAuthExtensions.PolicyName)]
+@using Cxml.Protocol.Documents.PunchOut
+@using CxmlDevServer.Core.Messaging
+@using CxmlDevServer.Core.Templates
+@inject UiData Data
+@inject UiUrls Urls
+
+<PageHeader Title="Message sender" Subtitle="Build a cXML request from a template, edit it and post it to this server (or any cXML endpoint).">
+</PageHeader>
+
+<div class="row g-4">
+    <div class="col-xl-7">
+        <div class="card">
+            <div class="card-body">
+                <div class="row g-3 mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label" for="s-template">Template</label>
+                        <select id="s-template" class="form-select" @bind="_templateKey" @bind:after="RenderAsync">
+                            <option value="">(custom document)</option>
+                            @foreach (var t in _templates)
+                            {
+                                <option value="@t.Key">@t.Name</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="s-partner">Sending partner</label>
+                        <select id="s-partner" class="form-select" @bind="_partnerId" @bind:after="RenderAsync">
+                            <option value="0">Demo values (no partner)</option>
+                            @foreach (var p in _partners)
+                            {
+                                <option value="@p.Id">@p.Name</option>
+                            }
+                        </select>
+                    </div>
+                </div>
+                <div class="d-flex justify-content-between align-items-center mb-2 gap-2">
+                    <div class="form-text m-0">@_description</div>
+                    <button class="btn btn-sm btn-outline-secondary text-nowrap" type="button" @onclick="RenderAsync" disabled="@string.IsNullOrEmpty(_templateKey)">Reset from template</button>
+                </div>
+
+                <label class="form-label" for="s-xml">cXML document</label>
+                <textarea id="s-xml" class="form-control xml-editor" rows="24" spellcheck="false" @bind="_xml"></textarea>
+
+                <div class="row g-3 mt-1">
+                    <div class="col-md-9">
+                        <label class="form-label" for="s-url">Target URL</label>
+                        <input id="s-url" class="form-control" @bind="_targetUrl" />
+                    </div>
+                    <div class="col-md-3 d-flex align-items-end">
+                        <button class="btn btn-primary w-100" type="button" @onclick="SendAsync" disabled="@(_sending || string.IsNullOrWhiteSpace(_xml))">
+                            @(_sending ? "Sending..." : "Send")
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-5">
+        <div class="card" id="send-result">
+            <div class="card-header">Response</div>
+            <div class="card-body">
+                @if (_result is null)
+                {
+                    <span class="text-body-secondary">Nothing sent yet. The response appears here.</span>
+                }
+                else
+                {
+                    @if (_startPage is not null)
+                    {
+                        <div class="alert alert-success d-flex flex-wrap align-items-center justify-content-between gap-2">
+                            <div><strong>PunchOut session ready.</strong><div class="small text-break">@_startPage</div></div>
+                            <a id="open-punchout" class="btn btn-success" href="@_startPage" target="_blank" rel="noopener"><Icon Name="external" Size="16" /> Open PunchOut session</a>
+                        </div>
+                    }
+                    @if (!_result.Succeeded)
+                    {
+                        <div class="alert alert-danger"><strong>No response.</strong> @_result.Error</div>
+                    }
+                    <dl class="kv mb-3">
+                        <dt>HTTP status</dt><dd><StatusBadge Code="@_result.HttpStatus" Empty="none" /></dd>
+                        <dt>cXML status</dt><dd><StatusBadge Code="@_result.CxmlStatusCode" Text="@_result.CxmlStatusText" Empty="none" /></dd>
+                        <dt>Duration</dt><dd>@((int)_result.Duration.TotalMilliseconds) ms</dd>
+                        @if (_result.LogId is { } logId)
+                        {
+                            <dt>Log entry</dt><dd><a href="messages/@logId" id="log-link">Message #@logId</a></dd>
+                        }
+                    </dl>
+                    @if (!string.IsNullOrEmpty(_result.ResponseText))
+                    {
+                        <XmlViewer Xml="@_result.ResponseText" />
+                    }
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [SupplyParameterFromQuery(Name = "template")] public string? TemplateQuery { get; set; }
+    [SupplyParameterFromQuery(Name = "partner")] public int? PartnerQuery { get; set; }
+    [SupplyParameterFromQuery(Name = "fromLog")] public int? FromLogQuery { get; set; }
+
+    private List<MessageTemplate> _templates = [];
+    private List<TradingPartner> _partners = [];
+    private string _templateKey = string.Empty;
+    private int _partnerId;
+    private string _xml = string.Empty;
+    private string _targetUrl = string.Empty;
+    private string? _description;
+    private bool _sending;
+    private CxmlOutboundResult? _result;
+    private string? _startPage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _targetUrl = Urls.LocalCxmlEndpoint;
+        _templates = (await Data.ScopeAsync(sp => Task.FromResult(sp.GetRequiredService<IMessageTemplateService>().Templates))).ToList();
+        _partners = await Data.QueryAsync(db => db.TradingPartners.AsNoTracking().Where(p => p.IsActive).OrderBy(p => p.Id).ToListAsync());
+
+        if (FromLogQuery is { } logId)
+        {
+            var log = await Data.QueryAsync(db => db.MessageLogs.AsNoTracking().FirstOrDefaultAsync(m => m.Id == logId));
+            if (log is not null)
+            {
+                _xml = log.RawXml;
+                _description = $"Loaded from message #{log.Id} ({log.DocumentType}). Edit it and press Send to replay.";
+                if (log.Direction == MessageDirection.Outbound && Uri.TryCreate(log.RemoteEndpoint, UriKind.Absolute, out var uri)
+                    && uri.Scheme is "http" or "https")
+                {
+                    _targetUrl = log.RemoteEndpoint!;
+                }
+
+                return;
+            }
+        }
+
+        _partnerId = PartnerQuery ?? _partners.FirstOrDefault()?.Id ?? 0;
+        _templateKey = _templates.Any(t => t.Key == TemplateQuery) ? TemplateQuery! : TemplateKeys.PunchOutSetupCreate;
+        await RenderAsync();
+    }
+
+    private async Task RenderAsync()
+    {
+        if (string.IsNullOrEmpty(_templateKey))
+        {
+            return;
+        }
+
+        var partner = _partnerId == 0 ? null : _partners.FirstOrDefault(p => p.Id == _partnerId);
+        _xml = await Data.ScopeAsync(sp => sp.GetRequiredService<IMessageTemplateService>().RenderAsync(_templateKey, partner, Urls.RequestBaseUrl));
+        _description = _templates.FirstOrDefault(t => t.Key == _templateKey)?.Description;
+    }
+
+    private async Task SendAsync()
+    {
+        _sending = true;
+        _result = null;
+        _startPage = null;
+        try
+        {
+            _result = await Data.ScopeAsync(sp => sp.GetRequiredService<ICxmlOutboundClient>().SendAsync(_targetUrl.Trim(), _xml));
+            _startPage = (_result.ResponseEnvelope?.Response?.Payload as PunchOutSetupResponse)?.StartPageUrl;
+        }
+        finally
+        {
+            _sending = false;
+        }
+    }
+}

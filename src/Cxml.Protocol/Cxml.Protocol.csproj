@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Cxml.Protocol</RootNamespace>
+    <Description>Pure cXML 1.2.071 protocol library: models, reader, writer, DTD validation and helpers.</Description>
+  </PropertyGroup>
+
+  <!-- The DTDs are linked from the spec folder (not duplicated) and embedded for offline validation. -->
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\cXML-spec\cXML_DTDs\1.2.071\*.dtd"
+                      LinkBase="Dtds\1.2.071"
+                      LogicalName="Cxml.Protocol.Dtds.1.2.071.%(Filename)%(Extension)" />
+  </ItemGroup>
+
+</Project>

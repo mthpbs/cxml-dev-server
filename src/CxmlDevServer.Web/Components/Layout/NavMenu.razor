@@ -1,0 +1,48 @@
+<input type="checkbox" id="nav-toggle" title="Navigation menu" class="nav-toggle" />
+<div class="brand-row">
+    <a class="brand" href="">
+        <span class="brand-mark">cX</span>
+        <span>cXML Dev Server</span>
+    </a>
+    <label for="nav-toggle" class="nav-toggle-label" aria-label="Toggle navigation"><span></span></label>
+</div>
+
+<nav class="nav-scrollable" onclick="document.getElementById('nav-toggle').checked = false">
+    <div class="nav-group">Overview</div>
+    <NavLink class="nav-link" href="" Match="NavLinkMatch.All"><Icon Name="dashboard" /> Dashboard</NavLink>
+
+    <div class="nav-group">Traffic</div>
+    <NavLink class="nav-link" href="messages"><Icon Name="mail" /> Message log</NavLink>
+    <NavLink class="nav-link" href="sessions"><Icon Name="cart" /> PunchOut sessions</NavLink>
+    <NavLink class="nav-link" href="orders"><Icon Name="file" /> Purchase orders</NavLink>
+
+    <div class="nav-group">Tools</div>
+    <NavLink class="nav-link" href="sender"><Icon Name="send" /> Message sender</NavLink>
+    <NavLink class="nav-link" href="scenarios"><Icon Name="sliders" /> Response scenarios</NavLink>
+
+    <div class="nav-group">Configuration</div>
+    <NavLink class="nav-link" href="partners"><Icon Name="users" /> Trading partners</NavLink>
+    <NavLink class="nav-link" href="identities"><Icon Name="id" /> Supplier identities</NavLink>
+    <NavLink class="nav-link" href="catalog"><Icon Name="box" /> Catalog</NavLink>
+    <NavLink class="nav-link" href="rules"><Icon Name="check" /> Validation rules</NavLink>
+
+    @if (Admin.Value.Enabled)
+    {
+        <AuthorizeView Policy="@AdminAuthExtensions.PolicyName">
+            <Authorized>
+                <div class="nav-account" id="nav-account">
+                    <div class="nav-account-name" title="Signed in"><Icon Name="users" /> <span id="nav-username">@context.User.Identity?.Name</span></div>
+                    <form method="post" action="account/logout" data-enhance="false">
+                        <AntiforgeryToken />
+                        <button type="submit" class="btn btn-sm btn-outline-light" id="logout-button">Sign out</button>
+                    </form>
+                </div>
+            </Authorized>
+        </AuthorizeView>
+    }
+</nav>
+
+@code {
+    [Inject]
+    private IOptions<AdminOptions> Admin { get; set; } = default!;
+}

@@ -1,0 +1,57 @@
+# Caddy reverse proxy for the cXML Dev Server (self-hosted stack, see docker-compose.yml).
+#
+# Settings come from the environment (compose passes them from .env):
+#   DOMAIN      public host name, e.g. cxml.example.com   (localhost works for a local test)
+#   ACME_EMAIL  contact address for Let's Encrypt / ZeroSSL expiry notices
+#   TLS_MODE    "acme" (default): public certificate from Let's Encrypt, needs DNS to point at this host and ports 80/443 reachable
+#               "internal":       certificate from Caddy's own local CA; for LAN or air-gapped use without public DNS.
+#                                 Browsers/clients must trust that CA (see the self-hosted runbook), or use curl -k to test.
+#
+# Check the file without starting anything (needs the environment variables):
+#   docker run --rm -e DOMAIN=localhost -e ACME_EMAIL=you@example.com -v "$PWD/Caddyfile:/etc/caddy/Caddyfile:ro" \
+#     caddy:2 caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+{
+	# Account e-mail for the ACME CA; unused with TLS_MODE=internal.
+	email {$ACME_EMAIL}
+}
+
+# Certificate source, chosen by TLS_MODE: "import tls-acme" or "import tls-internal".
+(tls-acme) {
+	# Nothing to add: Caddy obtains and renews a public certificate automatically for a real domain.
+}
+(tls-internal) {
+	tls internal
+}
+
+{$DOMAIN} {
+	import tls-{$TLS_MODE:acme}
+
+	# Blazor (SignalR over WebSockets) and plain HTTP both pass through reverse_proxy unchanged.
+	# Caddy sets X-Forwarded-For/-Proto/-Host and keeps the original Host header, as the app's forwarded-headers
+	# handling expects (the app trusts X-Forwarded-For/-Proto, not X-Forwarded-Host).
+	reverse_proxy app:8080 {
+		# The app answers /health; take a failing container out of rotation instead of returning 502 to buyers.
+		health_uri /health
+		health_interval 15s
+		health_timeout 5s
+	}
+
+	encode zstd gzip
+
+	header {
+		# Tell browsers to use HTTPS for this host for a year. Remove for TLS_MODE=internal if the CA is not trusted everywhere.
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		# Deliberately NO "X-Frame-Options: DENY" and no "frame-ancestors 'none'": procurement systems commonly open the
+		# PunchOut shop inside an iframe or a pop-up of the buyer application. Blocking framing would break PunchOut.
+		# Deliberately NO Content-Security-Policy: Blazor Server needs inline scripts/styles and a WebSocket connection.
+		-Server
+	}
+
+	# Access log to stdout (visible with: docker compose logs caddy).
+	log {
+		output stdout
+		format console
+	}
+}

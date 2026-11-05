@@ -1,0 +1,154 @@
+@page "/identities"
+@attribute [Authorize(Policy = AdminAuthExtensions.PolicyName)]
+@inject UiData Data
+
+<PageHeader Title="Supplier identities" Subtitle="The identities this server answers to. Documents must address one of them in the To credential." />
+
+<div class="card table-card">
+    <div class="table-responsive-card">
+        <table class="table">
+            <thead><tr><th>Domain</th><th>Identity</th><th>Name</th><th>Default</th><th></th></tr></thead>
+            <tbody>
+            @if (_items is not null)
+            {
+                @foreach (var item in _items)
+                {
+                    @if (_editing?.Id == item.Id)
+                    {
+                        <tr>
+                            <td><input class="form-control form-control-sm" @bind="_editing.Domain" aria-label="Domain" /></td>
+                            <td><input class="form-control form-control-sm" @bind="_editing.Identity" aria-label="Identity" /></td>
+                            <td><input class="form-control form-control-sm" @bind="_editing.Name" aria-label="Name" /></td>
+                            <td><input type="checkbox" class="form-check-input" @bind="_editing.IsDefault" aria-label="Default" /></td>
+                            <td class="text-end text-nowrap">
+                                <button class="btn btn-sm btn-primary" @onclick="SaveAsync">Save</button>
+                                <button class="btn btn-sm btn-outline-secondary" @onclick="() => _editing = null">Cancel</button>
+                            </td>
+                        </tr>
+                    }
+                    else
+                    {
+                        <tr>
+                            <td><span class="badge text-bg-secondary">@item.Domain</span></td>
+                            <td><code>@item.Identity</code></td>
+                            <td>@item.Name</td>
+                            <td>@if (item.IsDefault) { <span class="badge text-bg-primary">default</span> }</td>
+                            <td class="text-end text-nowrap">
+                                <button class="btn btn-sm btn-outline-primary" @onclick="() => Edit(item)">Edit</button>
+                                <ConfirmDeleteButton Prompt="Delete?" OnConfirmed="() => DeleteAsync(item.Id)" />
+                            </td>
+                        </tr>
+                    }
+                }
+            }
+            @if (_editing is { Id: 0 })
+            {
+                <tr>
+                    <td><input class="form-control form-control-sm" @bind="_editing.Domain" aria-label="Domain" placeholder="DUNS" /></td>
+                    <td><input class="form-control form-control-sm" @bind="_editing.Identity" aria-label="Identity" placeholder="123456789" /></td>
+                    <td><input class="form-control form-control-sm" @bind="_editing.Name" aria-label="Name" /></td>
+                    <td><input type="checkbox" class="form-check-input" @bind="_editing.IsDefault" aria-label="Default" /></td>
+                    <td class="text-end text-nowrap">
+                        <button class="btn btn-sm btn-primary" @onclick="SaveAsync">Add</button>
+                        <button class="btn btn-sm btn-outline-secondary" @onclick="() => _editing = null">Cancel</button>
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+    <div class="p-3 border-top">
+        @if (_error is not null)
+        {
+            <div class="alert alert-danger py-2">@_error</div>
+        }
+        <button class="btn btn-primary" @onclick="NewItem" disabled="@(_editing is { Id: 0 })"><Icon Name="plus" Size="16" /> Add identity</button>
+    </div>
+</div>
+
+@code {
+    private List<SupplierIdentity>? _items;
+    private SupplierIdentity? _editing;
+    private string? _error;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync() =>
+        _items = await Data.QueryAsync(db => db.SupplierIdentities.AsNoTracking().OrderByDescending(i => i.IsDefault).ThenBy(i => i.Id).ToListAsync());
+
+    private void NewItem()
+    {
+        _error = null;
+        _editing = new SupplierIdentity { Domain = "DUNS" };
+    }
+
+    private void Edit(SupplierIdentity item)
+    {
+        _error = null;
+        _editing = new SupplierIdentity { Id = item.Id, Domain = item.Domain, Identity = item.Identity, Name = item.Name, IsDefault = item.IsDefault };
+    }
+
+    private async Task SaveAsync()
+    {
+        _error = null;
+        var edit = _editing!;
+        if (string.IsNullOrWhiteSpace(edit.Domain) || string.IsNullOrWhiteSpace(edit.Identity))
+        {
+            _error = "Domain and identity are required.";
+            return;
+        }
+
+        try
+        {
+            await Data.CommandAsync(async db =>
+            {
+                SupplierIdentity entity;
+                if (edit.Id == 0)
+                {
+                    entity = new SupplierIdentity();
+                    db.SupplierIdentities.Add(entity);
+                }
+                else
+                {
+                    entity = await db.SupplierIdentities.FirstAsync(i => i.Id == edit.Id);
+                }
+
+                entity.Domain = edit.Domain.Trim();
+                entity.Identity = edit.Identity.Trim();
+                entity.Name = string.IsNullOrWhiteSpace(edit.Name) ? null : edit.Name.Trim();
+                entity.IsDefault = edit.IsDefault;
+                await db.SaveChangesAsync();
+                if (entity.IsDefault)
+                {
+                    // Only one identity is the default.
+                    foreach (var other in await db.SupplierIdentities.Where(i => i.Id != entity.Id && i.IsDefault).ToListAsync())
+                    {
+                        other.IsDefault = false;
+                    }
+
+                    await db.SaveChangesAsync();
+                }
+            });
+            _editing = null;
+            await LoadAsync();
+        }
+        catch (DbUpdateException)
+        {
+            _error = "An identity with this domain and value already exists.";
+        }
+    }
+
+    private async Task DeleteAsync(int id)
+    {
+        await Data.CommandAsync(async db =>
+        {
+            var entity = await db.SupplierIdentities.FirstOrDefaultAsync(i => i.Id == id);
+            if (entity is not null)
+            {
+                db.SupplierIdentities.Remove(entity);
+                await db.SaveChangesAsync();
+            }
+        });
+        await LoadAsync();
+    }
+}

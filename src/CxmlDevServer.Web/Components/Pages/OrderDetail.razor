@@ -1,0 +1,214 @@
+@page "/orders/{Id:int}"
+@attribute [Authorize(Policy = AdminAuthExtensions.PolicyName)]
+@using Cxml.Protocol.Documents.Orders
+@using Cxml.Protocol.Parsing
+@inject UiData Data
+@inject CxmlReader Reader
+
+@if (_order is null)
+{
+    @if (_loaded)
+    {
+        <PageHeader Title="Order not found" />
+        <div class="alert alert-warning">This purchase order does not exist. <a href="orders">Back to the list</a>.</div>
+    }
+}
+else
+{
+    <PageHeader Title="@($"Purchase order {_order.OrderId}")" Subtitle="@($"Version {_order.Version} from {_order.Partner?.Name ?? "an unknown partner"}")">
+        <Actions>
+            @if (_order.MessageLogId is { } logId)
+            {
+                <a class="btn btn-outline-primary" href="messages/@logId">Latest message</a>
+            }
+            <a class="btn btn-outline-secondary" href="orders">Back to orders</a>
+        </Actions>
+    </PageHeader>
+
+    <div class="row g-4 mb-4">
+        <div class="col-lg-6">
+            <div class="card h-100">
+                <div class="card-header">Header</div>
+                <div class="card-body">
+                    <dl class="kv">
+                        <dt>Status</dt><dd><span class="badge @StatusUi.OrderClass(_order.Status)">@_order.Status</span></dd>
+                        <dt>Type of latest request</dt><dd>@_order.Type.ToCxml()</dd>
+                        <dt>Version</dt><dd>@_order.Version</dd>
+                        <dt>Partner</dt><dd>@(_order.Partner?.Name ?? "-")</dd>
+                        <dt>Order date</dt><dd>@Fmt.Time(_order.OrderDate)</dd>
+                        <dt>Total</dt><dd><strong>@Fmt.Money(_order.TotalAmount, _order.Currency)</strong></dd>
+                        <dt>Deployment mode</dt><dd>@(_order.DeploymentMode ?? "-")</dd>
+                        <dt>Payload ID</dt><dd class="small"><code>@_order.PayloadId</code></dd>
+                        <dt>Received</dt><dd>@Fmt.Time(_order.CreatedAt) UTC</dd>
+                        <dt>Last update</dt><dd>@Fmt.Time(_order.UpdatedAt) UTC</dd>
+                        @if (_shipping is not null)
+                        {
+                            <dt>Shipping</dt><dd>@Fmt.Money(_shipping.Amount, _shipping.Currency) @_shipping.Description</dd>
+                        }
+                        @if (_tax is not null)
+                        {
+                            <dt>Tax</dt><dd>@Fmt.Money(_tax.Amount, _tax.Currency) @_tax.Description</dd>
+                        }
+                        @if (_payment is not null)
+                        {
+                            <dt>Payment</dt><dd>Card <code>@_payment.MaskedCardNumber</code>, expires @_payment.Expiration @(_payment.CardHolder is null ? null : "(" + _payment.CardHolder + ")")</dd>
+                        }
+                    </dl>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="row g-4">
+                <div class="col-md-6 col-lg-12 col-xl-6">
+                    <div class="card h-100"><div class="card-header">Ship to</div><div class="card-body"><AddressView Address="_shipTo" /></div></div>
+                </div>
+                <div class="col-md-6 col-lg-12 col-xl-6">
+                    <div class="card h-100"><div class="card-header">Bill to</div><div class="card-body"><AddressView Address="_billTo" /></div></div>
+                </div>
+                @if (_contacts.Count > 0 || _comments.Count > 0 || _extrinsics.Count > 0)
+                {
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-header">Contacts, comments and extrinsics</div>
+                            <div class="card-body">
+                                @foreach (var c in _contacts)
+                                {
+                                    <div class="mb-1"><span class="badge text-bg-secondary">@(c.Role ?? "contact")</span> <strong>@c.Name</strong> @string.Join(", ", c.Emails)</div>
+                                }
+                                @foreach (var c in _comments)
+                                {
+                                    <div class="mb-1"><span class="badge text-bg-info">comment</span> @c.Text</div>
+                                }
+                                @if (_extrinsics.Count > 0)
+                                {
+                                    <dl class="kv mt-2 mb-0">@foreach (var e in _extrinsics) { <dt>@e.Name</dt><dd>@e.Value</dd> }</dl>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="card table-card mb-4">
+        <div class="card-header">Lines</div>
+        <div class="table-responsive-card">
+            <table class="table">
+                <thead><tr><th>#</th><th>Part</th><th>Description</th><th class="text-end">Qty</th><th>UoM</th><th class="text-end">Unit price</th><th class="text-end">Line total</th><th>Classification</th><th>Delivery</th></tr></thead>
+                <tbody>
+                @foreach (var l in _order.Lines.OrderBy(l => l.LineNumber))
+                {
+                    <tr>
+                        <td>@l.LineNumber</td>
+                        <td><code>@l.SupplierPartId</code>@if (!string.IsNullOrEmpty(l.BuyerPartId)) { <div class="small text-body-secondary">buyer: @l.BuyerPartId</div> }</td>
+                        <td>@l.Description</td>
+                        <td class="text-end">@Fmt.Quantity(l.Quantity)</td>
+                        <td>@l.UnitOfMeasure</td>
+                        <td class="text-end">@Fmt.Money(l.UnitPrice, l.Currency)</td>
+                        <td class="text-end">@Fmt.Money(l.LineTotal, l.Currency)</td>
+                        <td>@(l.Classification is null ? "-" : $"{l.ClassificationDomain} {l.Classification}")</td>
+                        <td>@(l.RequestedDeliveryDate ?? "-")</td>
+                    </tr>
+                }
+                </tbody>
+                <tfoot><tr><th colspan="6" class="text-end">Sum of lines</th><th class="text-end">@Fmt.Money(_order.Lines.Sum(l => l.LineTotal), _order.Currency)</th><th colspan="2"></th></tr></tfoot>
+            </table>
+        </div>
+    </div>
+
+    <div class="card table-card">
+        <div class="card-header">Version history and linked messages</div>
+        @if (_versions.Count == 0)
+        {
+            <EmptyState>No messages are linked to this order.</EmptyState>
+        }
+        else
+        {
+            <div class="table-responsive-card">
+                <table class="table table-hover">
+                    <thead><tr><th>Received (UTC)</th><th>Request</th><th>Version</th><th>Payload ID</th><th>Result</th><th></th></tr></thead>
+                    <tbody>
+                    @foreach (var v in _versions)
+                    {
+                        <tr class="@(v.Message.Id == _order.MessageLogId ? "table-active" : null)">
+                            <td class="text-nowrap">@Fmt.Time(v.Message.CreatedAt)</td>
+                            <td>@v.Type</td>
+                            <td>@(v.Version is null ? "-" : "v" + v.Version)</td>
+                            <td class="small"><code>@Fmt.Truncate(v.Message.PayloadId, 40)</code></td>
+                            <td><StatusBadge Code="@(v.Message.CxmlStatusCode ?? v.Message.HttpStatus)" /></td>
+                            <td class="text-end"><a class="btn btn-sm btn-outline-primary" href="messages/@v.Message.Id">View XML</a></td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private sealed record VersionEntry(CxmlMessageLog Message, string Type, int? Version);
+
+    [Parameter] public int Id { get; set; }
+
+    private PurchaseOrder? _order;
+    private bool _loaded;
+    private List<VersionEntry> _versions = [];
+    private AddressSnapshot? _shipTo;
+    private AddressSnapshot? _billTo;
+    private PaymentSnapshot? _payment;
+    private AmountSnapshot? _shipping;
+    private AmountSnapshot? _tax;
+    private List<ContactSnapshot> _contacts = [];
+    private List<CommentSnapshot> _comments = [];
+    private List<NameValueSnapshot> _extrinsics = [];
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var (order, messages) = await Data.QueryAsync<(PurchaseOrder? Order, List<CxmlMessageLog> Logs)>(async db =>
+        {
+            var order = await db.PurchaseOrders.AsNoTracking().Include(o => o.Partner).Include(o => o.Lines).FirstOrDefaultAsync(o => o.Id == Id);
+            if (order is null)
+            {
+                return (null, new List<CxmlMessageLog>());
+            }
+
+            var correlation = CorrelationIds.ForOrder(order.PartnerId, order.OrderId);
+            var logs = await db.MessageLogs.AsNoTracking()
+                .Where(m => m.CorrelationId == correlation && m.Direction == MessageDirection.Inbound)
+                .OrderBy(m => m.CreatedAt).ThenBy(m => m.Id)
+                .ToListAsync();
+            return (order, logs);
+        });
+
+        _order = order;
+        _loaded = true;
+        _versions = messages.Select(m => Describe(m)).ToList();
+        _shipTo = Snapshots.FromJson<AddressSnapshot>(order?.ShipToJson);
+        _billTo = Snapshots.FromJson<AddressSnapshot>(order?.BillToJson);
+        _payment = Snapshots.FromJson<PaymentSnapshot>(order?.PaymentJson);
+        _shipping = Snapshots.FromJson<AmountSnapshot>(order?.ShippingJson);
+        _tax = Snapshots.FromJson<AmountSnapshot>(order?.TaxJson);
+        _contacts = Snapshots.ListFromJson<ContactSnapshot>(order?.ContactsJson);
+        _comments = Snapshots.ListFromJson<CommentSnapshot>(order?.CommentsJson);
+        _extrinsics = Snapshots.ListFromJson<NameValueSnapshot>(order?.ExtrinsicsJson);
+    }
+
+    private VersionEntry Describe(CxmlMessageLog message)
+    {
+        try
+        {
+            if (Reader.Read(message.RawXml).Request?.Payload is OrderRequest request)
+            {
+                return new VersionEntry(message, request.Header.Type.ToCxml(), request.Header.OrderVersion);
+            }
+        }
+        catch (CxmlParseException)
+        {
+            // A message that does not parse is still listed.
+        }
+
+        return new VersionEntry(message, message.DocumentType, null);
+    }
+}

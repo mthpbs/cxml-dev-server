@@ -1,0 +1,161 @@
+@page "/messages"
+@attribute [Authorize(Policy = AdminAuthExtensions.PolicyName)]
+@using Cxml.Protocol.Validation
+@inject UiData Data
+
+<PageHeader Title="Message log" Subtitle="Every cXML document received or sent, newest first." />
+
+<div class="card mb-3">
+    <div class="card-body filter-bar">
+        <div>
+            <label class="form-label" for="m-direction">Direction</label>
+            <select id="m-direction" class="form-select" @bind="_direction" @bind:after="FilterChangedAsync">
+                <option value="">All</option>
+                <option value="Inbound">Inbound</option>
+                <option value="Outbound">Outbound</option>
+            </select>
+        </div>
+        <div>
+            <label class="form-label" for="m-type">Document type</label>
+            <select id="m-type" class="form-select" @bind="_type" @bind:after="FilterChangedAsync">
+                <option value="">All</option>
+                @foreach (var t in _types) { <option value="@t">@t</option> }
+            </select>
+        </div>
+        <div>
+            <label class="form-label" for="m-partner">Partner</label>
+            <select id="m-partner" class="form-select" @bind="_partner" @bind:after="FilterChangedAsync">
+                <option value="0">All</option>
+                @foreach (var p in _partners) { <option value="@p.Id">@p.Name</option> }
+            </select>
+        </div>
+        <div>
+            <label class="form-label" for="m-status">Status</label>
+            <select id="m-status" class="form-select" @bind="_status" @bind:after="FilterChangedAsync">
+                <option value="">All</option>
+                <option value="ok">2xx OK</option>
+                <option value="4xx">4xx client errors</option>
+                <option value="5xx">5xx server errors</option>
+                <option value="error">Any error (4xx and 5xx)</option>
+            </select>
+        </div>
+        <div class="flex-grow-1" style="min-width: 14rem">
+            <label class="form-label" for="m-search">Search</label>
+            <input id="m-search" class="form-control" placeholder="payloadID, orderID, BuyerCookie ..." @bind="_text" @bind:event="oninput" @bind:after="FilterChangedAsync" />
+        </div>
+    </div>
+</div>
+
+<div class="card table-card quickgrid-card">
+    <div class="table-responsive-card">
+        <QuickGrid @ref="_grid" ItemsProvider="_provider" Pagination="_pagination" Class="table table-hover">
+            <TemplateColumn Title="#"><a href="messages/@context.Id">@context.Id</a></TemplateColumn>
+            <TemplateColumn Title="Time (UTC)"><span class="text-nowrap">@Fmt.Time(context.CreatedAt)</span></TemplateColumn>
+            <TemplateColumn Title="Document">
+                <span class="badge @(context.Direction == MessageDirection.Inbound ? "text-bg-info" : "text-bg-secondary")">@(context.Direction == MessageDirection.Inbound ? "in" : "out")</span>
+                <a href="messages/@context.Id" class="fw-semibold">@context.DocumentType</a>
+                <div class="small text-body-secondary">@context.Channel</div>
+            </TemplateColumn>
+            <TemplateColumn Title="Partner">@(context.PartnerName ?? "-")</TemplateColumn>
+            <TemplateColumn Title="Payload ID"><code class="small" title="@context.PayloadId">@Fmt.Truncate(context.PayloadId, 14)</code></TemplateColumn>
+            <TemplateColumn Title="Status">
+                @if (context.CxmlStatusCode is not null) { <StatusBadge Code="@context.CxmlStatusCode" Text="@context.CxmlStatusText" /> }
+                @if (context.HttpStatus is not null && context.HttpStatus != 200) { <StatusBadge Code="@context.HttpStatus" Title="HTTP status" Text="HTTP" /> }
+                @if (context.CxmlStatusCode is null && context.HttpStatus is null) { <span class="text-body-secondary">-</span> }
+                @if (context.CxmlStatusCode is null && context.HttpStatus == 200) { <StatusBadge Code="200" Text="HTTP" /> }
+            </TemplateColumn>
+            <TemplateColumn Title="Issues">
+                @if (context.Errors > 0) { <span class="badge text-bg-danger">@context.Errors error@(context.Errors == 1 ? "" : "s")</span> }
+                @if (context.Warnings > 0) { <span class="badge text-bg-warning">@context.Warnings warn</span> }
+            </TemplateColumn>
+        </QuickGrid>
+    </div>
+    <div class="grid-footer"><Paginator State="_pagination" /></div>
+</div>
+
+@code {
+    private sealed record Row(int Id, DateTimeOffset CreatedAt, MessageDirection Direction, MessageChannel Channel, string DocumentType,
+        string? PartnerName, string? PayloadId, int? HttpStatus, int? CxmlStatusCode, string? CxmlStatusText, int Errors, int Warnings, long DurationMs);
+
+    [SupplyParameterFromQuery(Name = "status")] public string? StatusQuery { get; set; }
+    [SupplyParameterFromQuery(Name = "partner")] public int? PartnerQuery { get; set; }
+    [SupplyParameterFromQuery(Name = "q")] public string? SearchQuery { get; set; }
+
+    private QuickGrid<Row>? _grid;
+    private readonly PaginationState _pagination = new() { ItemsPerPage = 20 };
+    private GridItemsProvider<Row> _provider = default!;
+    private List<string> _types = [];
+    private List<TradingPartner> _partners = [];
+    private string _direction = string.Empty;
+    private string _type = string.Empty;
+    private int _partner;
+    private string _status = string.Empty;
+    private string _text = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _status = StatusQuery ?? string.Empty;
+        _partner = PartnerQuery ?? 0;
+        _text = SearchQuery ?? string.Empty;
+        _provider = async request => await Data.QueryAsync(async db =>
+        {
+            IQueryable<CxmlMessageLog> query = db.MessageLogs.AsNoTracking();
+            if (Enum.TryParse<MessageDirection>(_direction, out var direction))
+            {
+                query = query.Where(m => m.Direction == direction);
+            }
+
+            if (!string.IsNullOrEmpty(_type))
+            {
+                var type = _type;
+                query = query.Where(m => m.DocumentType == type);
+            }
+
+            if (_partner > 0)
+            {
+                var partner = _partner;
+                query = query.Where(m => m.PartnerId == partner);
+            }
+
+            query = _status switch
+            {
+                "ok" => query.Where(m => (m.CxmlStatusCode ?? m.HttpStatus) >= 200 && (m.CxmlStatusCode ?? m.HttpStatus) < 300),
+                "4xx" => query.Where(m => (m.CxmlStatusCode ?? m.HttpStatus) >= 400 && (m.CxmlStatusCode ?? m.HttpStatus) < 500),
+                "5xx" => query.Where(m => (m.CxmlStatusCode ?? m.HttpStatus) >= 500),
+                "error" => query.Where(m => (m.CxmlStatusCode ?? m.HttpStatus) >= 400 || m.HttpStatus >= 400),
+                _ => query,
+            };
+
+            if (!string.IsNullOrWhiteSpace(_text))
+            {
+                var text = _text.Trim();
+                query = query.Where(m => (m.PayloadId != null && m.PayloadId.Contains(text))
+                    || (m.CorrelationId != null && m.CorrelationId.Contains(text))
+                    || m.RawXml.Contains(text));
+            }
+
+            var total = await query.CountAsync(request.CancellationToken);
+            var rows = await query.OrderByDescending(m => m.CreatedAt).ThenByDescending(m => m.Id)
+                .Skip(request.StartIndex).Take(request.Count ?? 20)
+                .Select(m => new Row(m.Id, m.CreatedAt, m.Direction, m.Channel, m.DocumentType,
+                    m.Partner != null ? m.Partner.Name : null, m.PayloadId, m.HttpStatus, m.CxmlStatusCode, m.CxmlStatusText,
+                    m.Issues.Count(i => i.Severity == ValidationSeverity.Error),
+                    m.Issues.Count(i => i.Severity == ValidationSeverity.Warning), m.DurationMs))
+                .ToListAsync(request.CancellationToken);
+            return GridItemsProviderResult.From(rows, total);
+        });
+
+        (_types, _partners) = await Data.QueryAsync(async db => (
+            await db.MessageLogs.AsNoTracking().Select(m => m.DocumentType).Distinct().OrderBy(t => t).ToListAsync(),
+            await db.TradingPartners.AsNoTracking().OrderBy(p => p.Name).ToListAsync()));
+    }
+
+    private async Task FilterChangedAsync()
+    {
+        await _pagination.SetCurrentPageIndexAsync(0);
+        if (_grid is not null)
+        {
+            await _grid.RefreshDataAsync();
+        }
+    }
+}

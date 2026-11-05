@@ -1,0 +1,65 @@
+@page "/partners"
+@attribute [Authorize(Policy = AdminAuthExtensions.PolicyName)]
+@inject UiData Data
+
+<PageHeader Title="Trading partners" Subtitle="Buyers and networks that may send documents to this server.">
+    <Actions><a class="btn btn-primary" href="partners/new"><Icon Name="plus" Size="16" /> New partner</a></Actions>
+</PageHeader>
+
+@if (_partners is null)
+{
+    <p class="text-body-secondary">Loading...</p>
+}
+else if (_partners.Count == 0)
+{
+    <div class="card"><EmptyState>No trading partners yet. <a href="partners/new">Create the first one.</a></EmptyState></div>
+}
+else
+{
+    <div class="card table-card quickgrid-card">
+        <div class="table-responsive-card">
+            <QuickGrid Items="_partners.AsQueryable()" Class="table table-hover">
+                <TemplateColumn Title="Name" SortBy="GridSort<TradingPartner>.ByAscending(p => p.Name)">
+                    <a href="partners/@context.Id" class="fw-semibold">@context.Name</a>
+                </TemplateColumn>
+                <TemplateColumn Title="From credential"><code>@context.FromDomain</code> / @context.FromIdentity</TemplateColumn>
+                <TemplateColumn Title="Sender credential"><code>@context.SenderDomain</code> / @context.SenderIdentity</TemplateColumn>
+                <PropertyColumn Property="p => p.AuthMode" Title="Auth" Sortable="true" />
+                <PropertyColumn Property="p => p.ValidationMode" Title="Validation" Sortable="true" />
+                <PropertyColumn Property="p => p.PunchOutPostEncoding" Title="Return encoding" />
+                <TemplateColumn Title="Status">
+                    <span class="badge @(context.IsActive ? "text-bg-success" : "text-bg-secondary")">@(context.IsActive ? "active" : "inactive")</span>
+                </TemplateColumn>
+                <TemplateColumn Title="">
+                    <div class="text-end text-nowrap">
+                        <a class="btn btn-sm btn-outline-primary" href="partners/@context.Id">Edit</a>
+                        <ConfirmDeleteButton Prompt="@($"Delete {context.Name}?")" OnConfirmed="() => DeleteAsync(context.Id)" />
+                    </div>
+                </TemplateColumn>
+            </QuickGrid>
+        </div>
+    </div>
+}
+
+@code {
+    private List<TradingPartner>? _partners;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync() =>
+        _partners = await Data.QueryAsync(db => db.TradingPartners.AsNoTracking().OrderBy(p => p.Name).ToListAsync());
+
+    private async Task DeleteAsync(int id)
+    {
+        await Data.CommandAsync(async db =>
+        {
+            var partner = await db.TradingPartners.FirstOrDefaultAsync(p => p.Id == id);
+            if (partner is not null)
+            {
+                db.TradingPartners.Remove(partner);
+                await db.SaveChangesAsync();
+            }
+        });
+        await LoadAsync();
+    }
+}

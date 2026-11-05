@@ -1,0 +1,127 @@
+.brand-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.9rem 1.1rem;
+}
+
+.brand {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    color: #fff;
+    font-weight: 650;
+    font-size: 1.05rem;
+    text-decoration: none;
+    letter-spacing: -0.01em;
+}
+
+.brand-mark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 0.5rem;
+    background: var(--app-accent);
+    color: #fff;
+    font-size: 0.85rem;
+    font-weight: 700;
+}
+
+.nav-toggle { display: none; }
+
+.nav-toggle-label {
+    cursor: pointer;
+    width: 2.4rem;
+    height: 2.2rem;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 0.4rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.nav-toggle-label span,
+.nav-toggle-label span::before,
+.nav-toggle-label span::after {
+    display: block;
+    width: 1.1rem;
+    height: 2px;
+    background: #cbd5e1;
+    position: relative;
+    content: "";
+}
+
+.nav-toggle-label span::before { position: absolute; top: -6px; }
+.nav-toggle-label span::after { position: absolute; top: 6px; }
+
+.nav-scrollable {
+    display: none;
+    padding: 0 0.75rem 1rem 0.75rem;
+    overflow-y: auto;
+}
+
+.nav-toggle:checked ~ .nav-scrollable { display: block; }
+
+.nav-group {
+    text-transform: uppercase;
+    font-size: 0.68rem;
+    letter-spacing: 0.08em;
+    color: #64748b;
+    font-weight: 700;
+    padding: 1rem 0.75rem 0.35rem 0.75rem;
+}
+
+::deep .nav-link {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    color: var(--app-sidebar-text);
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.5rem;
+    font-size: 0.9rem;
+    font-weight: 500;
+    text-decoration: none;
+}
+
+::deep .nav-link:hover {
+    background: rgba(255, 255, 255, 0.06);
+    color: #fff;
+}
+
+::deep .nav-link.active {
+    background: rgba(59, 91, 219, 0.25);
+    color: #fff;
+}
+
+.nav-account {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin: 0.5rem 0.75rem 1.25rem 0.75rem;
+    padding: 0.75rem 0.75rem 0 0.75rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    color: var(--app-sidebar-text);
+    font-size: 0.85rem;
+}
+
+.nav-account-name {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+@media (max-width: 991.98px) {
+    .nav-toggle-label { display: flex; }
+}
+
+@media (min-width: 992px) {
+    .nav-toggle-label { display: none; }
+    .nav-scrollable { display: block; }
+}

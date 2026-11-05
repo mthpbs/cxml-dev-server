@@ -1,0 +1,89 @@
+@page "/sessions"
+@attribute [Authorize(Policy = AdminAuthExtensions.PolicyName)]
+@inject UiData Data
+
+<PageHeader Title="PunchOut sessions" Subtitle="Shopping sessions started by PunchOutSetupRequest documents." />
+
+<div class="card mb-3">
+    <div class="card-body filter-bar">
+        <div style="min-width: 12rem">
+            <label class="form-label" for="s-status">Status</label>
+            <select id="s-status" class="form-select" @bind="_status" @bind:after="FilterChangedAsync">
+                <option value="">All</option>
+                @foreach (var s in Enum.GetValues<PunchOutSessionStatus>())
+                {
+                    <option value="@s">@s</option>
+                }
+            </select>
+        </div>
+    </div>
+</div>
+
+<div class="card table-card quickgrid-card">
+    <div class="table-responsive-card">
+        <QuickGrid @ref="_grid" ItemsProvider="_provider" Pagination="_pagination" Class="table table-hover">
+            <TemplateColumn Title="#"><a href="sessions/@context.Id">@context.Id</a></TemplateColumn>
+            <TemplateColumn Title="Created (UTC)"><span class="text-nowrap">@Fmt.Time(context.CreatedAt)</span></TemplateColumn>
+            <TemplateColumn Title="Partner">@(context.PartnerName ?? "-")</TemplateColumn>
+            <TemplateColumn Title="Operation">@context.Operation.ToCxml()</TemplateColumn>
+            <TemplateColumn Title="BuyerCookie"><code title="@context.BuyerCookie">@Fmt.Truncate(context.BuyerCookie, 28)</code></TemplateColumn>
+            <TemplateColumn Title="Status"><span class="badge @StatusUi.SessionClass(context.Status)">@context.Status</span></TemplateColumn>
+            <TemplateColumn Title="Cart" Align="Align.Right">@context.LineCount @(context.LineCount == 1 ? "line" : "lines")@(context.LineCount > 0 ? " / " + Fmt.Money(context.Total, context.Currency) : null)</TemplateColumn>
+            <TemplateColumn Title="Expires (UTC)"><span class="text-nowrap">@Fmt.Time(context.ExpiresAt)</span></TemplateColumn>
+            <TemplateColumn Title=""><div class="text-end"><a class="btn btn-sm btn-outline-primary" href="sessions/@context.Id">Details</a></div></TemplateColumn>
+        </QuickGrid>
+    </div>
+    <div class="grid-footer"><Paginator State="_pagination" /></div>
+</div>
+
+@code {
+    private sealed record Row(int Id, DateTimeOffset CreatedAt, string? PartnerName, PunchOutOperation Operation, string BuyerCookie,
+        PunchOutSessionStatus Status, DateTimeOffset ExpiresAt, int LineCount, decimal Total, string Currency);
+
+    private QuickGrid<Row>? _grid;
+    private readonly PaginationState _pagination = new() { ItemsPerPage = 15 };
+    private GridItemsProvider<Row> _provider = default!;
+    private string _status = string.Empty;
+
+    protected override void OnInitialized()
+    {
+        _provider = async request =>
+        {
+            var now = DateTimeOffset.UtcNow;
+            return await Data.QueryAsync(async db =>
+            {
+                IQueryable<PunchOutSession> query = db.PunchOutSessions.AsNoTracking();
+                if (Enum.TryParse<PunchOutSessionStatus>(_status, out var filter))
+                {
+                    query = filter switch
+                    {
+                        PunchOutSessionStatus.Created => query.Where(s => s.Status == PunchOutSessionStatus.Created && s.ExpiresAt > now),
+                        PunchOutSessionStatus.Opened => query.Where(s => s.Status == PunchOutSessionStatus.Opened && s.ExpiresAt > now),
+                        PunchOutSessionStatus.Expired => query.Where(s => s.Status == PunchOutSessionStatus.Expired
+                            || ((s.Status == PunchOutSessionStatus.Created || s.Status == PunchOutSessionStatus.Opened) && s.ExpiresAt <= now)),
+                        _ => query.Where(s => s.Status == filter),
+                    };
+                }
+
+                var total = await query.CountAsync(request.CancellationToken);
+                var sessions = await query.Include(s => s.Partner).Include(s => s.Lines)
+                    .OrderByDescending(s => s.CreatedAt).ThenByDescending(s => s.Id)
+                    .Skip(request.StartIndex).Take(request.Count ?? 15)
+                    .ToListAsync(request.CancellationToken);
+                var rows = sessions.Select(s => new Row(s.Id, s.CreatedAt, s.Partner?.Name, s.Operation, s.BuyerCookie,
+                    StatusUi.Effective(s), s.ExpiresAt, s.Lines.Count, s.Lines.Sum(l => l.LineTotal),
+                    s.Lines.FirstOrDefault()?.Currency ?? "USD")).ToList();
+                return GridItemsProviderResult.From(rows, total);
+            });
+        };
+    }
+
+    private async Task FilterChangedAsync()
+    {
+        await _pagination.SetCurrentPageIndexAsync(0);
+        if (_grid is not null)
+        {
+            await _grid.RefreshDataAsync();
+        }
+    }
+}

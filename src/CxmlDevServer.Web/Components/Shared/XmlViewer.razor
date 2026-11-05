@@ -1,0 +1,41 @@
+@using CxmlDevServer.Web.Services
+@inject IJSRuntime JS
+
+<div class="position-relative">
+    <button type="button" class="btn btn-sm btn-light position-absolute top-0 end-0 m-2" style="z-index: 1" @onclick="CopyAsync">
+        <Icon Name="copy" Size="14" /> @(_copied ? "Copied" : "Copy")
+    </button>
+    <pre class="xml-view">@Text</pre>
+</div>
+
+@code {
+    private bool _copied;
+    private string _text = string.Empty;
+
+    /// <summary>The XML to show; it is pretty-printed when it is well-formed.</summary>
+    [Parameter] public string? Xml { get; set; }
+
+    private string Text => _text;
+
+    protected override void OnParametersSet() => _text = XmlFormatter.Pretty(Xml);
+
+    private async Task CopyAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("cxmlDev.copyText", _text);
+            _copied = true;
+            StateHasChanged();
+            await Task.Delay(1500);
+            _copied = false;
+        }
+        catch (JSException)
+        {
+            // Clipboard access can be blocked by the browser; nothing to do.
+        }
+        catch (InvalidOperationException)
+        {
+            // Not interactive (prerendering).
+        }
+    }
+}

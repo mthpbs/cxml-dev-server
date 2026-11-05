@@ -1,0 +1,139 @@
+# Continuous integration: build and test the solution, build the image, and validate the deployment assets
+# (Bicep, the self-hosted compose stack, the Caddyfile, the backup script, the workflows themselves).
+# Nothing here pushes an image or touches Azure; see deploy-aca.yml for that.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-test:
+    name: Build and test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore CxmlDevServer.slnx
+
+      - name: Build
+        run: dotnet build CxmlDevServer.slnx --configuration Release --no-restore
+
+      - name: Test
+        run: >
+          dotnet test CxmlDevServer.slnx --configuration Release --no-build
+          --logger trx --results-directory TestResults
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: "**/TestResults/*.trx"
+          if-no-files-found: warn
+
+  docker-image:
+    name: Docker image
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      # Build only (no push): proves the Dockerfile and the build context still work.
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          load: true
+          tags: cxml-dev-server:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Smoke test the image CLI
+        run: |
+          hash="$(docker run --rm cxml-dev-server:ci hash-password 'ci-password')"
+          test -n "$hash"
+          echo "hash-password produced ${#hash} characters"
+
+  bicep:
+    name: Bicep
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Bicep CLI
+        run: az bicep install
+
+      - name: Build and lint templates
+        run: |
+          set -euo pipefail
+          for file in deploy/azure/main.bicep deploy/azure/modules/*.bicep; do
+            echo "::group::$file"
+            az bicep build --file "$file" --stdout > /dev/null
+            az bicep lint --file "$file"
+            echo "::endgroup::"
+          done
+
+      - name: Build parameter file
+        run: |
+          set -euo pipefail
+          ADMIN_PASSWORD_HASH=ci-placeholder az bicep build-params --file deploy/azure/main.bicepparam --stdout > /dev/null
+
+  selfhost:
+    name: Self-hosted stack
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate compose files
+        run: |
+          set -euo pipefail
+          cp deploy/selfhost/.env.example deploy/selfhost/.env
+          # ADMIN_PASSWORD_HASH is required; any non-empty value satisfies the interpolation check.
+          sed -i 's/^ADMIN_PASSWORD_HASH=.*/ADMIN_PASSWORD_HASH=ci-placeholder/' deploy/selfhost/.env
+          docker compose -f deploy/selfhost/docker-compose.yml config --quiet
+          docker compose -f docker-compose.yml config --quiet
+          rm deploy/selfhost/.env
+
+      - name: Validate Caddyfile
+        run: |
+          set -euo pipefail
+          for mode in acme internal; do
+            docker run --rm -e DOMAIN=cxml.example.com -e ACME_EMAIL=ci@example.com -e TLS_MODE="$mode" \
+              -v "$PWD/deploy/selfhost/Caddyfile:/etc/caddy/Caddyfile:ro" \
+              caddy:2 caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+          done
+
+      - name: Lint backup script
+        run: |
+          shellcheck --shell=sh deploy/selfhost/backup/backup.sh
+          sh -n deploy/selfhost/backup/backup.sh
+
+  workflows:
+    name: Lint workflows
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: actionlint
+        run: docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.12 -color
