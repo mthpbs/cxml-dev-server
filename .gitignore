@@ -435,3 +435,4 @@ data/*.db*
 deploy/selfhost/.env
 deploy/selfhost/backups/
 deploy/azure/*.json
+src/CxmlDevServer.Web/data/keys
