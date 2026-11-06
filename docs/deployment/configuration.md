@@ -59,7 +59,7 @@ In containers use environment variables. Boolean values are `true` and `false`.
 | `Cxml:SupplierIdentity` | `Cxml__SupplierIdentity` | `123456789` | Supplier credential identity in outbound headers when no supplier identity is stored. |
 | `Cxml:DefaultCurrency` | `Cxml__DefaultCurrency` | `USD` | Currency for empty carts and templates. |
 | `Cxml:InitializeDatabaseOnStartup` | `Cxml__InitializeDatabaseOnStartup` | `true` | Apply database migrations and seed an empty database at start-up. Leave it on. |
-| `Cxml:SeedDemoPartners` | `Cxml__SeedDemoPartners` | `true` (application default); `false` in `main.bicepparam` and `.env.example` | In an **empty** database: `true` also creates the demo trading partners (secrets `devsecret`, `abracadabra`) and a disabled sample scenario; `false` seeds only the supplier identities and the catalog. Has no effect on a database that already has data. |
+| `Cxml:SeedDemoPartners` | `Cxml__SeedDemoPartners` | `true` (application default, `main.bicepparam` and the Compose stack) | In an **empty** database: `true` also creates the demo trading partners (secrets `devsecret`, `abracadabra`) and a disabled sample scenario; `false` seeds only the supplier identities and the catalog. Has no effect on a database that already has data. |
 
 ### Admin login (`Admin:*`)
 
@@ -113,7 +113,7 @@ docker run --rm -it ghcr.io/mthpbs/cxml-dev-server:latest hash-password
 | `ADMIN_USERNAME` | `admin` | `Admin__Username` |
 | `CXML_PUBLIC_BASE_URL` | `https://<DOMAIN>` | `Cxml__PublicBaseUrl` |
 | `CXML_ALLOW_UNKNOWN_PARTNERS` | `false` | `Cxml__AllowUnknownPartners` |
-| `CXML_SEED_DEMO_PARTNERS` | `false` | `Cxml__SeedDemoPartners` |
+| `CXML_SEED_DEMO_PARTNERS` | `true` | `Cxml__SeedDemoPartners` |
 | `TLS_MODE` | `acme` | Caddy certificate source (`acme` or `internal`) |
 | `HTTP_PORT`, `HTTPS_PORT` | `80`, `443` | Published ports of Caddy |
 | `BACKUP_INTERVAL_HOURS`, `BACKUP_RETENTION_DAYS` | `24`, `14` | Backup schedule and retention |
@@ -133,7 +133,7 @@ block of the `app` service in `docker-compose.yml`.
 | `adminPasswordHash` (env `ADMIN_PASSWORD_HASH`) | empty (required while `adminEnabled`) | `Admin__PasswordHash`, via the container app secret `admin-password-hash` |
 | `publicBaseUrl` (env `PUBLIC_BASE_URL`) | empty | `Cxml__PublicBaseUrl` (only set when non-empty) |
 | `allowUnknownPartners` | `false` | `Cxml__AllowUnknownPartners` |
-| `seedDemoPartners` | `false` | `Cxml__SeedDemoPartners` |
+| `seedDemoPartners` | `true` | `Cxml__SeedDemoPartners` |
 | `ipAllowList` | `[]` (open) | Ingress IP restrictions |
 | `customDomains` (env `CUSTOM_DOMAINS_JSON`) | `[]` | Custom domains kept bound to the ingress (`name`, `certificateId`, optional `bindingType`); see the [Azure runbook](azure-container-apps.md#custom-domain-with-a-managed-certificate) |
 | `extraEnv` | none | Additional plain environment variables, for example `{ name: 'Cxml__DefaultCurrency', value: 'EUR' }`. Never put secrets here. |
@@ -250,7 +250,7 @@ The cXML traffic itself (requests, responses, validation issues) is stored in th
 ## New-environment checklist
 
 Work through this in order after the first deployment succeeded. It assumes the admin login is on
-(it should be) and the environment is empty (`SeedDemoPartners=false`). Details of the fields are in
+(it should be) and the environment is empty (deployed with `SeedDemoPartners=false`). Details of the fields are in
 [client-setup.md](../client-setup.md#create-your-own-trading-partner).
 
 1. **Sign in.** Open the URL, sign in as the admin user. Note the **cXML endpoint** shown on the
@@ -346,7 +346,7 @@ A typical set-up with three environments, using the options of this repository:
 | How it runs | `dotnet run` | `deploy-aca.yml` on `v*` tags | `deploy/selfhost` compose stack |
 | URL | `http://localhost:5058` | `https://<app>.<region>.azurecontainerapps.io` or a custom domain | `https://cxml.example.com` |
 | `Admin__Enabled` | `false` | `true` | `true` |
-| `Cxml__SeedDemoPartners` | `true` | `false` (or `true` behind an allow-list) | `false` |
+| `Cxml__SeedDemoPartners` | `true` | `true` (set `false` unless behind an allow-list) | `true` (set `false` on a shared host) |
 | `Cxml__AllowUnknownPartners` | `false` | `false` | `false` |
 | `Cxml__PublicBaseUrl` | empty | empty, or the custom domain | `https://cxml.example.com` (default from `DOMAIN`) |
 | Persistence | `data/cxml-dev.db` | none (ephemeral) | `cxml-data` volume plus daily backups |

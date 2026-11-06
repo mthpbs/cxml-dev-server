@@ -51,8 +51,8 @@ The server identifies a request by the `Header` of the cXML document:
 | `Request@deploymentMode` | the partner's *Deployment mode* if set (a mismatch is a warning) | `test` or `production` |
 
 The "Seeded value" column describes the demo partner. In the deployed environments (Docker Compose, Azure) the
-demo partners are normally switched off (`Cxml:SeedDemoPartners=false`) and you create your own partner with
-its own secret first; see the [new-environment checklist](deployment/configuration.md#new-environment-checklist).
+demo partners are seeded by default too; on a shared or internet-reachable host switch them off
+(`Cxml:SeedDemoPartners=false`) and create your own partner with its own secret first; see the [new-environment checklist](deployment/configuration.md#new-environment-checklist).
 
 Matching is case-insensitive. If the same buyer system sends several credentials in `From` (a marketplace
 and the member organisation), any one of them can match.

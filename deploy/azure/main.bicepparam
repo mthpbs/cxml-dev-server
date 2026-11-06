@@ -44,8 +44,9 @@ param adminPasswordHash = readEnvironmentVariable('ADMIN_PASSWORD_HASH', '')
 param publicBaseUrl = readEnvironmentVariable('PUBLIC_BASE_URL', '')
 
 param allowUnknownPartners = false
-// false recommended for shared deployments: no demo partners with well-known secrets.
-param seedDemoPartners = false
+// true: seed the demo partners (devsecret, abracadabra) in a fresh database. Set false for shared or
+// internet-reachable deployments: the demo partners have well-known secrets.
+param seedDemoPartners = true
 
 // Restrict who can reach the app (empty = open). Buyer systems must be inside these ranges.
 param ipAllowList = []

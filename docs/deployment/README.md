@@ -89,7 +89,8 @@ Whatever the platform, a working shared environment has these ingredients:
    login enabled and no password.
 3. **A stable public HTTPS URL** that buyer systems and users' browsers can reach. Set
    `Cxml__PublicBaseUrl` whenever the proxy does not pass the original host through unchanged.
-4. **A decision about demo data**: `Cxml__SeedDemoPartners=false` for anything reachable from a network you
+4. **A decision about demo data**: the templates seed the demo partners by default; set
+   `Cxml__SeedDemoPartners=false` for anything reachable from a network you
    do not fully control, because the demo partners use the well-known secrets `devsecret` and `abracadabra`.
 5. **Real trading partners with strong shared secrets**, created in the admin UI after the first start:
    follow the [new-environment checklist](configuration.md#new-environment-checklist).

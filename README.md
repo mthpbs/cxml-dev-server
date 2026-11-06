@@ -159,7 +159,7 @@ Created on the first start of an empty database (editable in the UI under *Tradi
 | Trading partner `Sender` | Acme (spec example) | `AribaNetworkUserId` | `sysadmin@ariba.com` | `abracadabra` |
 
 These demo partners (with their well-known secrets) exist only when `Cxml:SeedDemoPartners` is `true`, the
-default for local runs; the deployment templates turn it off.
+default for local runs and for the deployment templates; set it to `false` for shared or internet-reachable environments.
 
 Both partners use Lenient validation. "Demo Buyer" returns PunchOut carts as `cXML-base64` and allows `edit`;
 "Acme (spec example)" returns `cXML-urlencoded` and allows `create`. A disabled sample scenario ("fail the first

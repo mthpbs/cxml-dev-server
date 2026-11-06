@@ -151,7 +151,7 @@ docker login ghcr.io
    | `ADMIN_USERNAME` | `admin` | Admin user name. |
    | `CXML_PUBLIC_BASE_URL` | `https://<DOMAIN>` | Externally visible URL (see [forwarded headers](configuration.md#forwarded-headers-and-publicbaseurl)). |
    | `CXML_ALLOW_UNKNOWN_PARTNERS` | `false` | `true`: process documents from unknown senders with a warning. |
-   | `CXML_SEED_DEMO_PARTNERS` | `false` | `true`: create the demo partners with the well-known secrets `devsecret` and `abracadabra` in a **new** database. Leave it `false` on a shared host. |
+   | `CXML_SEED_DEMO_PARTNERS` | `true` | `true`: create the demo partners with the well-known secrets `devsecret` and `abracadabra` in a **new** database. Set it to `false` on a shared or internet-reachable host. |
    | `TLS_MODE` | `acme` | `acme` (public certificate) or `internal` (Caddy's own CA). |
    | `HTTP_PORT` / `HTTPS_PORT` | `80` / `443` | Host ports of Caddy; change only for testing. |
    | `BACKUP_INTERVAL_HOURS` / `BACKUP_RETENTION_DAYS` | `24` / `14` | Backup schedule and retention. |
