@@ -10,6 +10,7 @@ steps to configure a freshly deployed environment. Platform procedures are in
 - [Secrets handling](#secrets-handling)
 - [Forwarded headers and PublicBaseUrl](#forwarded-headers-and-publicbaseurl)
 - [Admin login](#admin-login)
+- [Microsoft 365 sign-in (Entra ID)](#microsoft-365-sign-in-entra-id)
 - [Data protection keys](#data-protection-keys)
 - [Logging](#logging)
 - [New-environment checklist](#new-environment-checklist)
@@ -66,10 +67,15 @@ In containers use environment variables. Boolean values are `true` and `false`.
 | Setting | Environment variable | Default | Description |
 |---|---|---|---|
 | `Admin:Enabled` | `Admin__Enabled` | `false` | `true`: the admin UI requires a login. `/cxml`, the PunchOut shop (`/punchout/*`), the test buyer (`/test-buyer/*`) and `/health` stay open. The Compose file and the Bicep template turn it on. |
-| `Admin:Username` | `Admin__Username` | `admin` | The single admin account. |
-| `Admin:PasswordHash` | `Admin__PasswordHash` | none | ASP.NET Core Identity password hash (format v3), created with `hash-password`. **Preferred.** Required (or `Admin:Password`) when the login is enabled, otherwise the application does not start. |
+| `Admin:Username` | `Admin__Username` | `admin` | The single password account. Only used when a password is configured. |
+| `Admin:PasswordHash` | `Admin__PasswordHash` | none | ASP.NET Core Identity password hash (format v3), created with `hash-password`. **Preferred.** When the login is enabled, the application needs a password (this or `Admin:Password`), the Microsoft sign-in below, or both; otherwise it does not start. |
 | `Admin:Password` | `Admin__Password` | none | Plain-text fallback for secret stores that cannot hold a hash. Ignored when `Admin:PasswordHash` is set. |
 | `Admin:SessionHours` | `Admin__SessionHours` | `8` | Sliding lifetime of the login cookie, in hours (at least 1). |
+| `Admin:Microsoft:TenantId` | `Admin__Microsoft__TenantId` | none | Directory (tenant) id of your Microsoft 365 organization, a GUID. Single tenant only: `common`, `organizations` and `consumers` are rejected. Setting any of tenant id, client id or secret switches the Microsoft sign-in on and then all three are required. See [Microsoft 365 sign-in](#microsoft-365-sign-in-entra-id). |
+| `Admin:Microsoft:ClientId` | `Admin__Microsoft__ClientId` | none | Application (client) id of the Entra app registration, a GUID. |
+| `Admin:Microsoft:ClientSecret` | `Admin__Microsoft__ClientSecret` | none | Client secret of the app registration. **Secret**; rotate it before it expires. |
+| `Admin:Microsoft:CallbackPath` | `Admin__Microsoft__CallbackPath` | `/signin-oidc` | Path of the sign-in callback; the redirect URI in Entra is the site URL plus this path. |
+| `Admin:Microsoft:Instance` | `Admin__Microsoft__Instance` | `https://login.microsoftonline.com/` | Identity platform; change only for a sovereign cloud (an absolute `https` URL). |
 
 ### Data Protection (`DataProtection:*`)
 
@@ -108,7 +114,8 @@ docker run --rm -it ghcr.io/mthpbs/cxml-dev-server:latest hash-password
 |---|---|---|
 | `DOMAIN` (required) | none | Caddy site address; default for `Cxml__PublicBaseUrl` |
 | `ACME_EMAIL` (required) | none | Caddy account e-mail |
-| `ADMIN_PASSWORD_HASH` (required) | none | `Admin__PasswordHash` |
+| `ADMIN_PASSWORD_HASH` | none | `Admin__PasswordHash` (set it, the three `ADMIN_MS_*` values, or both) |
+| `ADMIN_MS_TENANT_ID`, `ADMIN_MS_CLIENT_ID`, `ADMIN_MS_CLIENT_SECRET` | none | `Admin__Microsoft__TenantId`, `Admin__Microsoft__ClientId`, `Admin__Microsoft__ClientSecret` |
 | `IMAGE` | `ghcr.io/mthpbs/cxml-dev-server:latest` | Image of the `app` service |
 | `ADMIN_USERNAME` | `admin` | `Admin__Username` |
 | `CXML_PUBLIC_BASE_URL` | `https://<DOMAIN>` | `Cxml__PublicBaseUrl` |
@@ -130,7 +137,9 @@ block of the `app` service in `docker-compose.yml`.
 | `containerImage` (env `CONTAINER_IMAGE`) | `ghcr.io/mthpbs/cxml-dev-server:latest` | Container image |
 | `adminEnabled` | `true` | `Admin__Enabled` |
 | `adminUsername` | `admin` | `Admin__Username` |
-| `adminPasswordHash` (env `ADMIN_PASSWORD_HASH`) | empty (required while `adminEnabled`) | `Admin__PasswordHash`, via the container app secret `admin-password-hash` |
+| `adminPasswordHash` (env `ADMIN_PASSWORD_HASH`) | empty (while `adminEnabled`: required unless the Microsoft sign-in is complete) | `Admin__PasswordHash`, via the container app secret `admin-password-hash` |
+| `adminMicrosoftTenantId`, `adminMicrosoftClientId` (env `ADMIN_MS_TENANT_ID`, `ADMIN_MS_CLIENT_ID`) | empty | `Admin__Microsoft__TenantId`, `Admin__Microsoft__ClientId` (only set when non-empty) |
+| `adminMicrosoftClientSecret` (env `ADMIN_MS_CLIENT_SECRET`) | empty | `Admin__Microsoft__ClientSecret`, via the container app secret `admin-microsoft-client-secret` |
 | `publicBaseUrl` (env `PUBLIC_BASE_URL`) | empty | `Cxml__PublicBaseUrl` (only set when non-empty) |
 | `allowUnknownPartners` | `false` | `Cxml__AllowUnknownPartners` |
 | `seedDemoPartners` | `true` | `Cxml__SeedDemoPartners` |
@@ -153,13 +162,13 @@ committed `appsettings.json`.
 
 ## Secrets handling
 
-What is secret: `Admin__PasswordHash` (or `Admin__Password`), registry tokens, and every trading partner's
-shared secret (stored in the database and visible to administrators in the UI).
+What is secret: `Admin__PasswordHash` (or `Admin__Password`), `Admin__Microsoft__ClientSecret` (it expires:
+note the date and rotate it before then), registry tokens, and every trading partner's shared secret (stored in the database and visible to administrators in the UI).
 
 | Platform | How secrets are supplied | Rules |
 |---|---|---|
-| **GitHub Actions** | Environment secrets (`ADMIN_PASSWORD_HASH`, `GHCR_PULL_TOKEN`, `AZURE_*`). | Never echo them. The workflow passes them to the Bicep deployment through environment variables, not command-line arguments. Use a GitHub environment with required reviewers for production. Azure access uses OIDC federation: no Azure password or client secret is stored anywhere. |
-| **Azure Container Apps** | Bicep `@secure()` parameters become container app secrets (`admin-password-hash`, `registry-password`) referenced by `secretRef`. | Secrets are not visible in the deployment history or in the template output. Users with Contributor rights on the resource group can read them with `az containerapp secret list --show-values`. Changing a secret requires a restart to take effect. Do not put secrets in `extraEnv` or `main.bicepparam`. |
+| **GitHub Actions** | Environment secrets (`ADMIN_PASSWORD_HASH`, `ADMIN_MS_CLIENT_SECRET`, `GHCR_PULL_TOKEN`, `AZURE_*`); the tenant and client ids are plain variables (`ADMIN_MS_TENANT_ID`, `ADMIN_MS_CLIENT_ID`). | Never echo them. The workflow passes them to the Bicep deployment through environment variables, not command-line arguments. Use a GitHub environment with required reviewers for production. Azure access uses OIDC federation: no Azure password or client secret is stored anywhere. |
+| **Azure Container Apps** | Bicep `@secure()` parameters become container app secrets (`admin-password-hash`, `admin-microsoft-client-secret`, `registry-password`) referenced by `secretRef`. | Secrets are not visible in the deployment history or in the template output. Users with Contributor rights on the resource group can read them with `az containerapp secret list --show-values`. Changing a secret requires a restart to take effect. Do not put secrets in `extraEnv` or `main.bicepparam`. |
 | **Self-hosted Compose** | `deploy/selfhost/.env`. | The file is git-ignored; keep it mode `600`, owned by the deploying user, and back it up separately. Values are visible to anyone who can run `docker inspect` on the host: restrict Docker access. |
 | **Local** | Environment variables. | Do not commit hashes or passwords into `appsettings.json`. |
 
@@ -213,14 +222,70 @@ per-address login rate limit) and the scheme.
 - **Always anonymous**: `POST /cxml` and `GET /cxml`, `/punchout/{token}` and its checkout and cancel posts,
   `/test-buyer/punchout-return`, `/health`, static files and the error pages. Buyer systems and their users
   keep working without a login.
-- One account: `Admin__Username` and the hash. There is no user management, no password reset UI and no
-  lockout; the login form is rate limited to **5 attempts per minute per client address** (answer `429`).
+- Two ways to sign in, configured independently: **one password account** (`Admin__Username` and the hash)
+  and/or **any user of one Microsoft 365 tenant** (see [below](#microsoft-365-sign-in-entra-id)). When both are
+  configured the login page offers both, and the password is the break-glass login. There is no user
+  management, no password reset UI and no lockout; both login posts are rate limited to **5 attempts per
+  minute per client address** (answer `429`).
 - The session is a cookie named `cxml-dev-admin`: `HttpOnly`, `SameSite=Lax`, `Secure` when the request is
   HTTPS (as seen through forwarded headers), sliding expiry of `Admin__SessionHours` (default 8), not
   persistent (it ends with the browser session). **Sign out** is at the bottom of the sidebar.
 - Return URLs after login are accepted only when they are paths on this site.
-- Startup fails fast with a clear message when the login is enabled and no (valid) hash is configured, so a
-  misconfigured deployment can never run open by accident.
+- Startup fails fast with a clear message when the login is enabled and no (valid) sign-in method is
+  configured, so a misconfigured deployment can never run open by accident.
+
+## Microsoft 365 sign-in (Entra ID)
+
+Instead of (or next to) the shared password, administrators can sign in with their Microsoft 365 work account.
+The application is a confidential client of Microsoft Entra ID (OpenID Connect, authorization code flow with
+PKCE) for **one tenant**; whoever can sign in to that tenant and is allowed to use the app becomes an admin of
+the whole admin UI (there are no roles). Buyer-facing endpoints are not affected.
+
+Register the application once in the Entra admin center (<https://entra.microsoft.com>):
+
+1. **Identity > Applications > App registrations > New registration.** Name it (for example "cXML Dev
+   Server"); *Supported account types*: **Accounts in this organizational directory only (single tenant)**.
+2. *Redirect URI*: platform **Web**, value `https://<your host>/signin-oidc` (the public URL of the app, as
+   buyers reach it, for example `https://cxml.example.com/signin-oidc`). Add `http://localhost:<port>/signin-oidc`
+   as a second redirect URI to try it locally. Register.
+3. From the *Overview* page copy **Directory (tenant) ID** and **Application (client) ID**.
+4. **Certificates & secrets > Client secrets > New client secret.** Copy the secret **value** at once (it is
+   shown only once) and note its expiry date. Rotate it before it expires, otherwise the Microsoft sign-in
+   stops working (the password login, if configured, keeps working).
+5. No API permissions are needed beyond the default *Microsoft Graph > User.Read* (delegated), which covers
+   `openid`, `profile` and `email`. The application calls no Graph API.
+6. *Optional*: to allow only selected people, open **Identity > Applications > Enterprise applications >** your
+   app **> Properties** and set **Assignment required? = Yes**, then assign users or groups under *Users and
+   groups*. Without it, every user of the tenant can sign in.
+
+Then give the application the three values (and keep the secret out of files and the repository):
+
+| Platform | Where |
+|---|---|
+| Local | `Admin__Enabled=true Admin__Microsoft__TenantId=<guid> Admin__Microsoft__ClientId=<guid> Admin__Microsoft__ClientSecret=<secret> dotnet run --project src/CxmlDevServer.Web` |
+| Self-hosted Compose | `ADMIN_MS_TENANT_ID`, `ADMIN_MS_CLIENT_ID`, `ADMIN_MS_CLIENT_SECRET` in `deploy/selfhost/.env`, then `docker compose up -d` |
+| Azure Container Apps | GitHub variables `ADMIN_MS_TENANT_ID`, `ADMIN_MS_CLIENT_ID` and secret `ADMIN_MS_CLIENT_SECRET` (or the environment variables of the same name when deploying by hand), then deploy again |
+
+How it behaves:
+
+- The login page shows **Sign in with Microsoft** (and the password form too when a password is configured).
+  Microsoft shows its account picker every time, so somebody who signed out can choose another account.
+- Only accounts of the configured tenant are accepted: the token's issuer and its `tid` claim must match the
+  tenant id, otherwise the user is sent back to the login page with "Microsoft sign-in failed or was
+  cancelled". The reason is written to the server log, never shown in the browser.
+- The result is the same `cxml-dev-admin` cookie as for the password login (same lifetime, same sign-out). The
+  signed-in name in the sidebar is the user's sign-in name (`preferred_username`, usually the UPN).
+- **Sign out** ends the session of this application only; it does not sign the user out of Microsoft.
+- The redirect URI is built from `Cxml__PublicBaseUrl` when that is set (self-hosted Compose and custom
+  domains set it), otherwise from the request. It must match the Entra registration exactly, including
+  `https`. Behind a proxy keep forwarded headers on (`ASPNETCORE_FORWARDEDHEADERS_ENABLED=true`, already the
+  default in the image), or the redirect URI would say `http://`. The browser must reach the application
+  over `https` (or `http://localhost`): the sign-in cookies are `Secure`.
+- Settings are validated at start-up: a tenant id that is not a GUID (including `common`, `organizations`,
+  `consumers`), a missing client id or secret, or a non-`https` `Instance` stops the application with a message.
+- Failed attempts: `AADSTS50011` (reply URL mismatch) means the redirect URI in Entra differs from
+  `<public URL>/signin-oidc`; `AADSTS7000215` (invalid client secret) means the secret is wrong or expired;
+  `AADSTS50105` means *Assignment required* is on and the user is not assigned.
 
 ## Data protection keys
 

@@ -117,6 +117,16 @@ param adminUsername string = 'admin'
 @description('Admin password hash (Admin__PasswordHash), created with: docker run --rm -it <image> hash-password. Stored as the container app secret "admin-password-hash".')
 param adminPasswordHash string = ''
 
+@description('Directory (tenant) id of the Microsoft 365 tenant whose users may sign in to the admin UI (Admin__Microsoft__TenantId, a GUID; single tenant only). Empty together with the client id and secret: no Microsoft sign-in.')
+param adminMicrosoftTenantId string = ''
+
+@description('Application (client) id of the Entra app registration (Admin__Microsoft__ClientId, a GUID).')
+param adminMicrosoftClientId string = ''
+
+@secure()
+@description('Client secret of the Entra app registration (Admin__Microsoft__ClientSecret). Stored as the container app secret "admin-microsoft-client-secret".')
+param adminMicrosoftClientSecret string = ''
+
 @description('Externally visible base URL (Cxml__PublicBaseUrl), for example https://cxml.contoso.com. Empty: derived from the request (correct for the default *.azurecontainerapps.io URL).')
 param publicBaseUrl string = ''
 
@@ -135,10 +145,11 @@ param extraEnv envVar[] = []
 @description('Custom domains of the ingress. Empty: none. Note that a deployment replaces the ingress configuration, so list every domain you want to keep here.')
 param customDomains customDomain[] = []
 
-// Validation hook: main.bicep passes a non-empty value only when the admin login is off or a hash was supplied. The
+// Validation hook: main.bicep passes a non-empty value only when the admin login is off, a hash was supplied or the
+// complete Microsoft sign-in (tenant id, client id, client secret) was supplied. The
 // length constraint makes the deployment fail early, with this parameter name in the error, instead of creating an app
 // that refuses to start. (Bicep's assert statement is still experimental, so a parameter constraint is used.)
-@description('Set by main.bicep. Empty means adminEnabled=true without adminPasswordHash, which is rejected.')
+@description('Set by main.bicep. Empty means adminEnabled=true without adminPasswordHash and without the Microsoft sign-in, which is rejected.')
 @minLength(1)
 #disable-next-line no-unused-params
 param adminCredentialIsSetOrLoginDisabled string
@@ -146,6 +157,9 @@ param adminCredentialIsSetOrLoginDisabled string
 var useRegistryIdentity = !empty(registryServer) && !empty(registryIdentityResourceId)
 var useRegistryPassword = !useRegistryIdentity && !empty(registryServer) && !empty(registryUsername) && !empty(registryPassword)
 var useAdminHash = adminEnabled && !empty(adminPasswordHash)
+// The Microsoft values are passed as they are (each one when it is set): a partial set makes the application stop with
+// a message that names the missing setting, instead of silently running without the sign-in.
+var useAdminMicrosoftSecret = adminEnabled && !empty(adminMicrosoftClientSecret)
 
 // Secrets exist only when a value was supplied; an empty secret would be rejected by the platform.
 var registrySecrets = useRegistryPassword ? [
@@ -154,12 +168,20 @@ var registrySecrets = useRegistryPassword ? [
     value: registryPassword
   }
 ] : []
-var adminSecrets = useAdminHash ? [
-  {
-    name: 'admin-password-hash'
-    value: adminPasswordHash
-  }
-] : []
+var adminSecrets = concat(
+  useAdminHash ? [
+    {
+      name: 'admin-password-hash'
+      value: adminPasswordHash
+    }
+  ] : [],
+  useAdminMicrosoftSecret ? [
+    {
+      name: 'admin-microsoft-client-secret'
+      value: adminMicrosoftClientSecret
+    }
+  ] : []
+)
 
 var registries = useRegistryIdentity ? [
   {
@@ -188,10 +210,21 @@ var baseEnv = [
 var adminHashEnv = useAdminHash ? [
   { name: 'Admin__PasswordHash', secretRef: 'admin-password-hash' }
 ] : []
+var adminMicrosoftEnv = concat(
+  adminEnabled && !empty(adminMicrosoftTenantId) ? [
+    { name: 'Admin__Microsoft__TenantId', value: adminMicrosoftTenantId }
+  ] : [],
+  adminEnabled && !empty(adminMicrosoftClientId) ? [
+    { name: 'Admin__Microsoft__ClientId', value: adminMicrosoftClientId }
+  ] : [],
+  useAdminMicrosoftSecret ? [
+    { name: 'Admin__Microsoft__ClientSecret', secretRef: 'admin-microsoft-client-secret' }
+  ] : []
+)
 var publicBaseUrlEnv = empty(publicBaseUrl) ? [] : [
   { name: 'Cxml__PublicBaseUrl', value: publicBaseUrl }
 ]
-var env = concat(baseEnv, adminHashEnv, publicBaseUrlEnv, extraEnv)
+var env = concat(baseEnv, adminHashEnv, adminMicrosoftEnv, publicBaseUrlEnv, extraEnv)
 
 resource app 'Microsoft.App/containerApps@2024-03-01' = {
   name: name
