@@ -1,0 +1,124 @@
+# Builds the Docker image and publishes it to GHCR (ghcr.io/<owner>/cxml-dev-server, owner in lowercase).
+#
+# Triggers: pushing a tag "v*", a push to main, or manually (Actions > Release image > Run workflow).
+# Tags produced: on a tag v1.2.3 - 1.2.3, 1.2, 1 (semver), latest and sha-xxxxxxx; on main - edge and sha-xxxxxxx.
+# A tag push also creates a GitHub Release (pre-release when the tag contains "-", for example v1.2.0-rc.1).
+# Azure deployments are separate and manual: see deploy-aca.yml.
+# Uses only the built-in GITHUB_TOKEN; no secrets or variables need to be configured.
+name: Release image
+
+on:
+  push:
+    tags: ["v*"]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-image-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  IMAGE_NAME: cxml-dev-server
+
+jobs:
+  image:
+    name: Build and push image
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.ref.outputs.repository }}@${{ steps.build.outputs.digest }}
+    steps:
+      - name: Resolve image repository
+        id: ref
+        env:
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          # GHCR repository names must be lowercase.
+          echo "repository=ghcr.io/${OWNER,,}/${IMAGE_NAME}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v7
+
+      - uses: docker/setup-buildx-action@v4
+
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Image metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ steps.ref.outputs.repository }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=raw,value=latest,enable=${{ github.ref_type == 'tag' }}
+            type=edge,branch=main
+            type=sha,prefix=sha-
+
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            SOURCE_URL=${{ github.server_url }}/${{ github.repository }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Summary
+        env:
+          TAGS: ${{ steps.meta.outputs.tags }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          {
+            echo "### Image published"
+            echo
+            echo "Tags:"
+            while IFS= read -r tag; do
+              [ -n "$tag" ] && echo "- \`$tag\`"
+            done <<< "$TAGS"
+            echo
+            echo "Digest: \`$DIGEST\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  release:
+    name: Create GitHub Release
+    needs: image
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      OWNER: ${{ github.repository_owner }}
+    steps:
+      - name: Create release
+        run: |
+          set -euo pipefail
+          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            echo "Release $GITHUB_REF_NAME already exists; nothing to do."
+            exit 0
+          fi
+          version="${GITHUB_REF_NAME#v}"
+          image="ghcr.io/${OWNER,,}/${IMAGE_NAME}:${version}"
+          args=()
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then
+            args+=(--prerelease)
+          fi
+          notes="Docker image: \`docker pull ${image}\`"
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --verify-tag --generate-notes \
+            --notes "$notes" "${args[@]}"
