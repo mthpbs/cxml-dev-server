@@ -230,7 +230,7 @@ login turned on and HTTPS in front of the app:
 | Option | Data | Start here |
 |---|---|---|
 | **Self-hosted Docker Compose**: app + Caddy (automatic HTTPS) + scheduled SQLite backups, in [`deploy/selfhost`](deploy/selfhost) | Persistent volume and backups | [docs/deployment/self-hosted.md](docs/deployment/self-hosted.md) |
-| **Azure Container Apps**: Bicep template in [`deploy/azure`](deploy/azure) and a GitHub Actions workflow that builds the image, publishes it to GHCR and deploys | Ephemeral: reset on every restart or deployment | [docs/deployment/azure-container-apps.md](docs/deployment/azure-container-apps.md) |
+| **Azure Container Apps**: Bicep template in [`deploy/azure`](deploy/azure) and GitHub Actions workflows that publish the image to GHCR (`release-image.yml`: semver and `latest` on `v*` tags, `edge` on main) and deploy it on demand | Ephemeral: reset on every restart or deployment | [docs/deployment/azure-container-apps.md](docs/deployment/azure-container-apps.md) |
 
 [docs/deployment/README.md](docs/deployment/README.md) compares the options (with architecture diagrams), and
 [docs/deployment/configuration.md](docs/deployment/configuration.md) lists every setting and gives the

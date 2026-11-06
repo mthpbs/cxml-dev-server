@@ -84,7 +84,7 @@ The template always sets `ASPNETCORE_FORWARDEDHEADERS_ENABLED=true`,
 | [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli) | A recent version. The Bicep tooling comes with it: run `az bicep upgrade` to get the current Bicep CLI. `main.bicep` uses user-defined types and `import`, which need a current Bicep (it was developed against Bicep 0.48). |
 | Docker | To create the admin password hash (any machine with Docker; see below). Alternatively use the .NET SDK. |
 | GitHub CLI (`gh`) | Optional, for the workflow setup commands below. The same can be done in the GitHub web UI. |
-| An image in a registry | Published by the workflow on the first run (GHCR), or push your own. |
+| An image in a registry | Published to GHCR by [`release-image.yml`](../../.github/workflows/release-image.yml) (push a `v*` tag or run it manually), or push your own. |
 
 Check your tools:
 
@@ -160,8 +160,7 @@ SP_OBJECT_ID="$(az ad sp show --id "$APP_ID" --query id --output tsv)"; echo "$S
 ```
 
 Create the federated credential. The `subject` must match **exactly** (case-sensitive) what GitHub puts in
-the token. Because the deploy job declares `environment:`, the subject is always the environment form, for
-manual runs and for `v*` tag pushes alike:
+the token. Because the deploy job declares `environment:`, the subject is always the environment form:
 
 ```json
 {
@@ -281,7 +280,7 @@ gh variable set AZURE_LOCATION --repo "$GITHUB_REPO" --env "$GITHUB_ENVIRONMENT"
 | `AZURE_CUSTOM_DOMAINS_JSON` | variable | no | `customDomains` parameter (empty means `[]`) |
 
 Recommended on the GitHub side (*Settings*, *Environments*, `production`): add **required reviewers** so a
-pushed `v*` tag waits for approval, and limit *Deployment branches and tags* to the tags you release from.
+manual run waits for approval, and limit *Deployment branches and tags* to the tags you release from.
 
 ## Admin password hash
 
@@ -314,7 +313,7 @@ shell history and the process list. Use a long random password and keep it in a 
 openssl rand -base64 24
 ```
 
-The image does not exist in GHCR before the first workflow run. For the very first hash either build the
+The image does not exist in GHCR before `release-image.yml` has run once (push a `v*` tag or run it manually). For the very first hash either build the
 image locally (`docker build -t cxml-dev-server .`) or use the `dotnet run` form above; the hash is the same
 format everywhere.
 
@@ -326,7 +325,7 @@ above; the Entra app and the GitHub settings are only for the workflow.
 Set the inputs. `main.bicepparam` reads them from the environment:
 
 ```bash
-export CONTAINER_IMAGE="ghcr.io/mthpbs/cxml-dev-server:v1.0.0"
+export CONTAINER_IMAGE="ghcr.io/mthpbs/cxml-dev-server:1.0.0"
 ```
 
 The hash is the variable you created in [Admin password hash](#admin-password-hash) (`ADMIN_PASSWORD_HASH`).
@@ -364,32 +363,30 @@ reject the combination. Environment variables work everywhere, which is why this
 
 ## Deployment through GitHub Actions
 
-[`deploy-aca.yml`](../../.github/workflows/deploy-aca.yml) has two jobs:
+[`deploy-aca.yml`](../../.github/workflows/deploy-aca.yml) is run manually and has two jobs. Images are published by
+[`release-image.yml`](../../.github/workflows/release-image.yml) (`1.2.0`, `1.2`, `1` and `latest` on `v*` tags,
+`edge` on main, `sha-<7 characters>` always); the deploy workflow never runs on a tag push.
 
-1. **Build and push image**: builds the Dockerfile and pushes
-   `ghcr.io/<owner>/cxml-dev-server:<tag>` using the built-in `GITHUB_TOKEN`. Tags: the git tag (`v1.2.0`),
-   `sha-<7 characters>` and, for tags and the default branch, `latest`.
+1. **Build and push image**: with an empty `image_tag`, builds the Dockerfile and pushes
+   `ghcr.io/<owner>/cxml-dev-server:sha-<7 characters>` using the built-in `GITHUB_TOKEN`; with `image_tag`, skips the build.
 2. **Deploy**: signs in to Azure with OIDC, runs `az deployment group create` against
    `deploy/azure/main.bicepparam` with the image from job 1, then smoke-tests `GET /health` and `GET /cxml`
    on the new URL (10 retries, 10 seconds apart).
 
-Triggers:
+Trigger:
 
 | Trigger | Environment | Image |
 |---|---|---|
-| Push of a tag `v*` | `production` | Built from the tagged commit |
 | Manual run (*Actions*, *Deploy to Azure Container Apps*, *Run workflow*) | The `environment` input (default `production`) | Built from the selected ref as `sha-xxxxxxx`, or, if you fill in `image_tag`, **no build**: that existing tag is deployed (this is the rollback path) |
 
-Release a version:
+Publish a version (builds the image and creates a GitHub Release), then deploy it by hand:
 
 ```bash
 git tag v1.0.0 && git push origin v1.0.0
 ```
 
-Or run it by hand:
-
 ```bash
-gh workflow run deploy-aca.yml --repo "$GITHUB_REPO" --ref main -f environment=production
+gh workflow run deploy-aca.yml --repo "$GITHUB_REPO" --ref main -f environment=production -f image_tag=1.0.0
 ```
 
 ```bash
@@ -709,7 +706,7 @@ Deploy a previous image tag. Through the workflow, run it manually with the `ima
 happens):
 
 ```bash
-gh workflow run deploy-aca.yml --repo "$GITHUB_REPO" --ref main -f environment=production -f image_tag=v1.0.0
+gh workflow run deploy-aca.yml --repo "$GITHUB_REPO" --ref main -f environment=production -f image_tag=1.0.0
 ```
 
 From the CLI, point `CONTAINER_IMAGE` at the older tag and repeat the
@@ -718,7 +715,7 @@ deployment, so no database migration problem can occur.
 
 ### Update the image
 
-Release a new tag (`git tag v1.1.0 && git push origin v1.1.0`) or run the workflow manually. Prefer
+Release a new tag (`git tag v1.1.0 && git push origin v1.1.0`, which publishes `1.1.0`), then run the deploy workflow manually with that `image_tag`. Prefer
 immutable tags over `latest`: redeploying an unchanged template (the same `latest` reference) does not
 change the revision template, so Azure may not create a new revision or pull the image again.
 

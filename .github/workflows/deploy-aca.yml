@@ -1,7 +1,8 @@
 # Builds the image, publishes it to GHCR and deploys it to Azure Container Apps with deploy/azure/main.bicep.
 #
-# Triggers: pushing a tag "v*" (environment "production"), or manually (Actions > Deploy to Azure Container Apps >
-# Run workflow) with a GitHub environment name and optionally an existing image tag to deploy without building.
+# Trigger: manually only (Actions > Deploy to Azure Container Apps > Run workflow) with a GitHub environment name and
+# optionally an existing image tag. Images are published by release-image.yml (semver and latest on "v*" tags, edge on
+# main): pick an existing tag to deploy it without building, or leave it empty to build the selected ref as sha-xxxxxxx.
 #
 # Required in the GitHub environment (or repository) - Settings > Secrets and variables > Actions:
 #   secrets:   AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID   Entra app with a federated credential for this
@@ -27,15 +28,13 @@ on:
         description: Existing image tag in GHCR to deploy (empty - build and push the selected ref first)
         type: string
         required: false
-  push:
-    tags: ["v*"]
 
 permissions:
   contents: read
 
 # One deployment per environment at a time; a running deployment is never cancelled half-way.
 concurrency:
-  group: deploy-aca-${{ inputs.environment || 'production' }}
+  group: deploy-aca-${{ inputs.environment }}
   cancel-in-progress: false
 
 env:
@@ -63,9 +62,6 @@ jobs:
           if [ -n "$INPUT_TAG" ]; then
             tag="$INPUT_TAG"
             build=false
-          elif [ "$GITHUB_REF_TYPE" = "tag" ]; then
-            tag="$GITHUB_REF_NAME"
-            build=true
           else
             tag="sha-${GITHUB_SHA::7}"
             build=true
@@ -77,13 +73,13 @@ jobs:
             echo "image=$repository:$tag"
           } >> "$GITHUB_OUTPUT"
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         if: steps.ref.outputs.build == 'true'
 
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
         if: steps.ref.outputs.build == 'true'
 
-      - uses: docker/login-action@v3
+      - uses: docker/login-action@v4
         if: steps.ref.outputs.build == 'true'
         with:
           registry: ghcr.io
@@ -93,17 +89,15 @@ jobs:
       - name: Image metadata
         id: meta
         if: steps.ref.outputs.build == 'true'
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ steps.ref.outputs.repository }}
           tags: |
-            type=ref,event=tag
             type=sha,prefix=sha-
-            type=raw,value=latest,enable=${{ github.ref_type == 'tag' || github.ref_name == github.event.repository.default_branch }}
 
       - name: Build and push
         if: steps.ref.outputs.build == 'true'
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           push: true
@@ -115,18 +109,18 @@ jobs:
           cache-to: type=gha,mode=max
 
   deploy:
-    name: Deploy to ${{ inputs.environment || 'production' }}
+    name: Deploy to ${{ inputs.environment }}
     needs: image
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    environment: ${{ inputs.environment || 'production' }}
+    environment: ${{ inputs.environment }}
     permissions:
       contents: read
       id-token: write # OIDC token for azure/login
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: azure/login@v2
+      - uses: azure/login@v3
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}

@@ -28,7 +28,7 @@ Two ready-made deployments live in this repository:
 | TLS | none (plain http on localhost) | Automatic Let's Encrypt certificate via Caddy, or Caddy's own CA for a LAN | Provided by the platform (`*.azurecontainerapps.io`), managed certificate for a custom domain |
 | Admin login | off by default | on (required by the compose file) | on by default in the template |
 | Cost | none | The host you already have; a 1 vCPU / 1 GB VM is enough | Pay per use of one always-on replica plus Log Analytics ingestion; see the Azure pricing calculator |
-| Effort to stand up | minutes | about 30 minutes (DNS, firewall, `.env`) | about 1 hour the first time (Entra app, role assignment, GitHub secrets), then one command or one tag push |
+| Effort to stand up | minutes | about 30 minutes (DNS, firewall, `.env`) | about 1 hour the first time (Entra app, role assignment, GitHub secrets), then one command or one manual workflow run |
 | Effort to operate | none | Docker updates, host patching, backup checks | Almost none; re-enter partners after every restart (see below) |
 | Best for | Developing against the simulator, running the tests | Long-lived shared environment where configured partners and the message history must survive | Disposable, quickly provisioned shared environment, demos, workshops, CI-style integration tests |
 
@@ -54,8 +54,8 @@ flowchart LR
     app --- data[("EmptyDir /app/data<br/>SQLite and keys<br/>lost on restart")]
     app -->|console logs| logs["Log Analytics workspace"]
     ghcr["GHCR or ACR<br/>container image"] -.->|pull at start| app
-    gha["GitHub Actions<br/>deploy-aca.yml"] -->|"push image"| ghcr
-    gha -->|"az deployment group create<br/>OIDC login"| arm["Azure Resource Manager<br/>main.bicep"]
+    rel["GitHub Actions<br/>release-image.yml"] -->|"push image"| ghcr
+    gha["GitHub Actions<br/>deploy-aca.yml (manual)"] -->|"az deployment group create<br/>OIDC login"| arm["Azure Resource Manager<br/>main.bicep"]
     arm -.->|creates| ingress
 ```
 
@@ -81,8 +81,8 @@ Never publish port 8080 directly to the internet: any client could then spoof th
 
 Whatever the platform, a working shared environment has these ingredients:
 
-1. **The image**: `ghcr.io/mthpbs/cxml-dev-server:<tag>` (published by the deploy workflow), another registry
-   you push to, or built from this repository with `docker build`. Prefer an immutable tag (`v1.2.0`,
+1. **The image**: `ghcr.io/mthpbs/cxml-dev-server:<tag>` (published by `release-image.yml`: semver and `latest` on `v*` tags, `edge` on main), another registry
+   you push to, or built from this repository with `docker build`. Prefer an immutable tag (`1.2.0`,
    `sha-abc1234`) over `latest`.
 2. **An admin password hash** in `Admin__PasswordHash`, created with the image's `hash-password` command.
    The admin UI is open to everyone until `Admin__Enabled=true`; the application refuses to start with the
