@@ -36,7 +36,7 @@ services:
       Admin__PasswordHash: "${ADMIN_PASSWORD_HASH:?Set ADMIN_PASSWORD_HASH in .env (create it with: docker run --rm -it <image> hash-password)}"
       Cxml__PublicBaseUrl: "${CXML_PUBLIC_BASE_URL:-https://${DOMAIN:?Set DOMAIN in .env}}"
       Cxml__AllowUnknownPartners: ${CXML_ALLOW_UNKNOWN_PARTNERS:-false}
-      Cxml__SeedDemoPartners: ${CXML_SEED_DEMO_PARTNERS:-false}
+      Cxml__SeedDemoPartners: ${CXML_SEED_DEMO_PARTNERS:-true}
     volumes:
       - cxml-data:/app/data
     networks:
