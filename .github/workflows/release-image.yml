@@ -1,7 +1,8 @@
 # Builds the Docker image and publishes it to GHCR (ghcr.io/<owner>/cxml-dev-server, owner in lowercase).
 #
 # Triggers: pushing a tag "v*", a push to main, or manually (Actions > Release image > Run workflow).
-# Tags produced: on a tag v1.2.3 - 1.2.3, 1.2, 1 (semver), latest and sha-xxxxxxx; on main - edge and sha-xxxxxxx.
+# Tags produced: on a tag v1.2.3 - 1.2.3, 1.2, 1 (semver), latest and sha-xxxxxxx; on a pre-release tag v1.3.0-rc.1 -
+# 1.3.0-rc.1 and sha-xxxxxxx only; on main - edge and sha-xxxxxxx.
 # A tag push also creates a GitHub Release (pre-release when the tag contains "-", for example v1.2.0-rc.1).
 # Azure deployments are separate and manual: see deploy-aca.yml.
 # Uses only the built-in GITHUB_TOKEN; no secrets or variables need to be configured.
@@ -61,7 +62,7 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
-            type=raw,value=latest,enable=${{ github.ref_type == 'tag' }}
+            type=raw,value=latest,enable=${{ github.ref_type == 'tag' && !contains(github.ref_name, '-') }}
             type=edge,branch=main
             type=sha,prefix=sha-
 

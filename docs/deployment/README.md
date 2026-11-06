@@ -54,8 +54,8 @@ flowchart LR
     app --- data[("EmptyDir /app/data<br/>SQLite and keys<br/>lost on restart")]
     app -->|console logs| logs["Log Analytics workspace"]
     ghcr["GHCR or ACR<br/>container image"] -.->|pull at start| app
-    gha["GitHub Actions<br/>release-image.yml"] -->|"push image"| ghcr
-    gha -->|"az deployment group create<br/>OIDC login"| arm["Azure Resource Manager<br/>main.bicep"]
+    rel["GitHub Actions<br/>release-image.yml"] -->|"push image"| ghcr
+    gha["GitHub Actions<br/>deploy-aca.yml (manual)"] -->|"az deployment group create<br/>OIDC login"| arm["Azure Resource Manager<br/>main.bicep"]
     arm -.->|creates| ingress
 ```
 
@@ -82,7 +82,7 @@ Never publish port 8080 directly to the internet: any client could then spoof th
 Whatever the platform, a working shared environment has these ingredients:
 
 1. **The image**: `ghcr.io/mthpbs/cxml-dev-server:<tag>` (published by `release-image.yml`: semver and `latest` on `v*` tags, `edge` on main), another registry
-   you push to, or built from this repository with `docker build`. Prefer an immutable tag (`v1.2.0`,
+   you push to, or built from this repository with `docker build`. Prefer an immutable tag (`1.2.0`,
    `sha-abc1234`) over `latest`.
 2. **An admin password hash** in `Admin__PasswordHash`, created with the image's `hash-password` command.
    The admin UI is open to everyone until `Admin__Enabled=true`; the application refuses to start with the

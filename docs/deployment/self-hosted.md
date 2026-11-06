@@ -332,7 +332,7 @@ docker image prune -f
 Pin the previous tag in `.env`:
 
 ```ini
-IMAGE=ghcr.io/mthpbs/cxml-dev-server:v1.0.0
+IMAGE=ghcr.io/mthpbs/cxml-dev-server:1.0.0
 ```
 
 ```bash

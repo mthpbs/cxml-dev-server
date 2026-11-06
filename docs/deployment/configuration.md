@@ -321,7 +321,7 @@ Work through this in order after the first deployment succeeded. It assumes the 
       only the ingress). This is what makes the forwarded-headers trust safe.
 - [ ] Network restriction where possible: ACA `ipAllowList`, or a firewall / VPN in front of the self-hosted
       host. Remember that the browsers of PunchOut users and the buyer's servers must be allowed.
-- [ ] Image pinned to a version tag (`v1.2.0`, `sha-abc1234`), upgraded deliberately; the host kept patched.
+- [ ] Image pinned to a version tag (`1.2.0`, `sha-abc1234`), upgraded deliberately; the host kept patched.
 - [ ] Secrets only in secret stores: GitHub environment secrets, container app secrets, a `chmod 600` `.env`.
       Nothing secret in the repository, in `extraEnv`, in `main.bicepparam` or in `appsettings.json`.
 - [ ] GitHub environment `production` with required reviewers and a restricted set of deployable
@@ -351,7 +351,7 @@ A typical set-up with three environments, using the options of this repository:
 | `Cxml__PublicBaseUrl` | empty | empty, or the custom domain | `https://cxml.example.com` (default from `DOMAIN`) |
 | Persistence | `data/cxml-dev.db` | none (ephemeral) | `cxml-data` volume plus daily backups |
 | Access control | local only | `ipAllowList` of the company egress ranges | Firewall/VPN, or open with strong secrets |
-| Image | built from source | `ghcr.io/mthpbs/cxml-dev-server:v1.x.y` | pinned `IMAGE` tag |
+| Image | built from source | `ghcr.io/mthpbs/cxml-dev-server:1.x.y` | pinned `IMAGE` tag |
 | Upgrade | `git pull` | tag a release | `docker compose pull app caddy && docker compose up -d` |
 
 Give each environment its own admin password and its own trading partner secrets, so that a leaked secret

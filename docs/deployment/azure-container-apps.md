@@ -160,8 +160,7 @@ SP_OBJECT_ID="$(az ad sp show --id "$APP_ID" --query id --output tsv)"; echo "$S
 ```
 
 Create the federated credential. The `subject` must match **exactly** (case-sensitive) what GitHub puts in
-the token. Because the deploy job declares `environment:`, the subject is always the environment form, for
-manual runs:
+the token. Because the deploy job declares `environment:`, the subject is always the environment form:
 
 ```json
 {
@@ -326,7 +325,7 @@ above; the Entra app and the GitHub settings are only for the workflow.
 Set the inputs. `main.bicepparam` reads them from the environment:
 
 ```bash
-export CONTAINER_IMAGE="ghcr.io/mthpbs/cxml-dev-server:v1.0.0"
+export CONTAINER_IMAGE="ghcr.io/mthpbs/cxml-dev-server:1.0.0"
 ```
 
 The hash is the variable you created in [Admin password hash](#admin-password-hash) (`ADMIN_PASSWORD_HASH`).
@@ -707,7 +706,7 @@ Deploy a previous image tag. Through the workflow, run it manually with the `ima
 happens):
 
 ```bash
-gh workflow run deploy-aca.yml --repo "$GITHUB_REPO" --ref main -f environment=production -f image_tag=v1.0.0
+gh workflow run deploy-aca.yml --repo "$GITHUB_REPO" --ref main -f environment=production -f image_tag=1.0.0
 ```
 
 From the CLI, point `CONTAINER_IMAGE` at the older tag and repeat the
