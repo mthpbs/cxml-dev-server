@@ -32,6 +32,11 @@ COPY cXML-spec/cXML_DTDs/ cXML-spec/cXML_DTDs/
 RUN dotnet publish src/CxmlDevServer.Web/CxmlDevServer.Web.csproj \
     --configuration Release --no-restore --output /app/publish /p:UseAppHost=false
 
+# Without the Blazor script the UI loads but is not interactive; fail the build instead of shipping that
+# (see RequiresAspNetWebAssets in src/CxmlDevServer.Web/CxmlDevServer.Web.csproj).
+RUN test -f /app/publish/wwwroot/_framework/blazor.web.js \
+    || { echo "blazor.web.js is missing from the publish output" >&2; exit 1; }
+
 # ---- runtime ----
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 # Passed at build time, e.g. docker build --build-arg SOURCE_URL=https://github.com/<owner>/<repo> .
