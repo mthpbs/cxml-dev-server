@@ -20,7 +20,9 @@ public sealed class AdminCredentialValidator
     public bool IsValid(string? username, string? password)
     {
         var admin = _options.Value;
-        if (!admin.Enabled)
+        // Without a configured password (Microsoft-only sign-in) the password login must stay closed: an empty
+        // submitted password must never match an empty configured one.
+        if (!admin.Enabled || !admin.HasPassword)
         {
             return false;
         }

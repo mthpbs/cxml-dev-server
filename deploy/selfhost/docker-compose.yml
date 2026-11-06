@@ -1,6 +1,6 @@
 # cXML Dev Server - self-hosted stack: app + Caddy (automatic HTTPS) + SQLite backups.
 #
-#   cp .env.example .env          # then edit: DOMAIN, ACME_EMAIL, ADMIN_PASSWORD_HASH, ...
+#   cp .env.example .env          # then edit: DOMAIN, ACME_EMAIL, ADMIN_PASSWORD_HASH and/or ADMIN_MS_*, ...
 #   docker compose up -d                                 # first start: pulls the published image (IMAGE); if it cannot be pulled, builds it from this repository
 #   docker compose pull app caddy && docker compose up -d   # upgrade (a bare "docker compose pull" fails: the backup image is built locally)
 #   docker compose up -d --build                         # always build the images from this repository instead
@@ -33,7 +33,12 @@ services:
       # (/app/data/cxml-dev.db, /app/data/keys, port 8080); /app/data is the cxml-data volume.
       Admin__Enabled: "true"
       Admin__Username: ${ADMIN_USERNAME:-admin}
-      Admin__PasswordHash: "${ADMIN_PASSWORD_HASH:?Set ADMIN_PASSWORD_HASH in .env (create it with: docker run --rm -it <image> hash-password)}"
+      # Sign-in: set ADMIN_PASSWORD_HASH, the Microsoft 365 settings (ADMIN_MS_*), or both. The app refuses to start
+      # (see `docker compose logs app`) when neither is set or the Microsoft settings are incomplete.
+      Admin__PasswordHash: "${ADMIN_PASSWORD_HASH:-}"
+      Admin__Microsoft__TenantId: "${ADMIN_MS_TENANT_ID:-}"
+      Admin__Microsoft__ClientId: "${ADMIN_MS_CLIENT_ID:-}"
+      Admin__Microsoft__ClientSecret: "${ADMIN_MS_CLIENT_SECRET:-}"
       Cxml__PublicBaseUrl: "${CXML_PUBLIC_BASE_URL:-https://${DOMAIN:?Set DOMAIN in .env}}"
       Cxml__AllowUnknownPartners: ${CXML_ALLOW_UNKNOWN_PARTNERS:-false}
       Cxml__SeedDemoPartners: ${CXML_SEED_DEMO_PARTNERS:-true}

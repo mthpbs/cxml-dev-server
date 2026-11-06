@@ -2,7 +2,9 @@
 //
 // Values that differ per deployment, and all secrets, come from environment variables (readEnvironmentVariable):
 //   CONTAINER_IMAGE       full image reference, e.g. ghcr.io/<owner>/cxml-dev-server:1.2.0
-//   ADMIN_PASSWORD_HASH   output of: docker run --rm -it <image> hash-password          (required while adminEnabled = true)
+//   ADMIN_PASSWORD_HASH   output of: docker run --rm -it <image> hash-password          (while adminEnabled = true: set this, the Microsoft trio below, or both)
+//   ADMIN_MS_TENANT_ID, ADMIN_MS_CLIENT_ID, ADMIN_MS_CLIENT_SECRET   Microsoft 365 sign-in of the admin UI (Entra app registration, single
+//                         tenant; redirect URI <app URL>/signin-oidc). Set all three or none; see docs/deployment/configuration.md
 //   REGISTRY_SERVER       default ghcr.io                                  REGISTRY_USERNAME / REGISTRY_PASSWORD   private images only
 //   AZURE_LOCATION        region (empty: region of the resource group)
 //   PUBLIC_BASE_URL       custom-domain URL, e.g. https://cxml.contoso.com (empty: derived from the request)
@@ -35,10 +37,14 @@ param existingEnvironmentResourceId = readEnvironmentVariable('EXISTING_ENVIRONM
 param cpu = '0.5'
 param memory = '1Gi'
 
-// Admin login. The hash is REQUIRED while adminEnabled is true.
+// Admin login. While adminEnabled is true, at least one sign-in method is REQUIRED: the password hash, the complete
+// Microsoft 365 sign-in (tenant id, client id, client secret), or both (the password then is the break-glass login).
 param adminEnabled = true
 param adminUsername = 'admin'
 param adminPasswordHash = readEnvironmentVariable('ADMIN_PASSWORD_HASH', '')
+param adminMicrosoftTenantId = readEnvironmentVariable('ADMIN_MS_TENANT_ID', '')
+param adminMicrosoftClientId = readEnvironmentVariable('ADMIN_MS_CLIENT_ID', '')
+param adminMicrosoftClientSecret = readEnvironmentVariable('ADMIN_MS_CLIENT_SECRET', '')
 
 // Set when a custom domain is bound to the app, for example 'https://cxml.contoso.com'.
 param publicBaseUrl = readEnvironmentVariable('PUBLIC_BASE_URL', '')

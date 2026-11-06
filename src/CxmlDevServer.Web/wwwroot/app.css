@@ -266,6 +266,9 @@ body.plain-page { background: var(--app-bg); }
 /* ---------- Login page ---------- */
 .login-shell { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 1rem; }
 .login-card { width: 100%; max-width: 24rem; }
+/* "or" between the Microsoft button and the password form. */
+.login-divider { display: flex; align-items: center; gap: 0.75rem; margin: 1rem 0; color: var(--bs-secondary-color, #6c757d); font-size: 0.85rem; }
+.login-divider::before, .login-divider::after { content: ""; flex: 1; border-top: 1px solid var(--bs-border-color, #dee2e6); }
 .brand-mark-lg {
     display: inline-flex; align-items: center; justify-content: center;
     width: 2.5rem; height: 2.5rem; border-radius: 0.6rem;

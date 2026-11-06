@@ -55,7 +55,8 @@ appear in a file or on a command line:
 | Environment variable | Bicep parameter | Default | Purpose |
 |---|---|---|---|
 | `CONTAINER_IMAGE` | `containerImage` | `ghcr.io/mthpbs/cxml-dev-server:latest` | Full image reference. Use an immutable tag. |
-| `ADMIN_PASSWORD_HASH` | `adminPasswordHash` | empty | Required while `adminEnabled` is true; stored as a container app secret. |
+| `ADMIN_PASSWORD_HASH` | `adminPasswordHash` | empty | While `adminEnabled` is true: set this, the Microsoft trio below, or both; stored as a container app secret. |
+| `ADMIN_MS_TENANT_ID`, `ADMIN_MS_CLIENT_ID`, `ADMIN_MS_CLIENT_SECRET` | `adminMicrosoftTenantId`, `adminMicrosoftClientId`, `adminMicrosoftClientSecret` | empty | Microsoft 365 sign-in for the admin UI ([setup](configuration.md#microsoft-365-sign-in-entra-id); redirect URI `<app URL>/signin-oidc`). Set all three or none. The secret is stored as the container app secret `admin-microsoft-client-secret`. |
 | `REGISTRY_SERVER` | `registryServer` | `ghcr.io` | Registry host. |
 | `REGISTRY_USERNAME` | `registryUsername` | empty | Registry user, only for a private image. |
 | `REGISTRY_PASSWORD` | `registryPassword` | empty | Registry token (GHCR: a personal access token with `read:packages`), only for a private image. Stored as a secret. |
@@ -271,7 +272,9 @@ gh variable set AZURE_LOCATION --repo "$GITHUB_REPO" --env "$GITHUB_ENVIRONMENT"
 | Name | Kind | Required | Used for |
 |---|---|---|---|
 | `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID` | secret | yes | `azure/login` with OIDC |
-| `ADMIN_PASSWORD_HASH` | secret | yes | `Admin__PasswordHash` |
+| `ADMIN_PASSWORD_HASH` | secret | yes, unless the Microsoft sign-in is set | `Admin__PasswordHash` |
+| `ADMIN_MS_CLIENT_SECRET` | secret | with the Microsoft sign-in | `Admin__Microsoft__ClientSecret` |
+| `ADMIN_MS_TENANT_ID`, `ADMIN_MS_CLIENT_ID` | variable | with the Microsoft sign-in | `Admin__Microsoft__TenantId`, `Admin__Microsoft__ClientId` |
 | `GHCR_PULL_TOKEN` | secret | only for a private package | Registry password in the container app |
 | `AZURE_RESOURCE_GROUP` | variable | yes | Target resource group |
 | `AZURE_LOCATION` | variable | no | `location` parameter |
@@ -746,7 +749,7 @@ change the revision template, so Azure may not create a new revision or pull the
 | Deployment error `MissingSubscriptionRegistration` | Register the providers (step 2 of the setup). |
 | Deployment error about CPU and memory | The pair is not a valid Consumption combination; see [Scale and size](#scale-and-size). |
 | Deployment error about the environment's location | `AZURE_LOCATION` differs from the region of `EXISTING_ENVIRONMENT_ID`. Use the same region or leave `AZURE_LOCATION` empty. |
-| Deployment error `adminCredentialIsSetOrLoginDisabled` / `MinLength` | `adminEnabled` is true and `ADMIN_PASSWORD_HASH` is empty. Export it or set the GitHub secret. |
+| Deployment error `adminCredentialIsSetOrLoginDisabled` / `MinLength` | `adminEnabled` is true and neither `ADMIN_PASSWORD_HASH` nor the complete Microsoft sign-in (`ADMIN_MS_TENANT_ID`, `ADMIN_MS_CLIENT_ID`, `ADMIN_MS_CLIENT_SECRET`) is set. Export them or set the GitHub secrets and variables. |
 | Errors about `readEnvironmentVariable`, `import` or unknown syntax in a Bicep file | The Bicep CLI is too old (`az bicep upgrade`), or the variable is not exported in this shell. |
 | `AADSTS70021: No matching federated identity record found` in `azure/login` | The federated credential subject does not match. It must read `repo:<owner>/<repo>:environment:<environment name>` exactly, including case. The job must use that environment. |
 | `AuthorizationFailed` during the deployment | The service principal lacks `Contributor` on the resource group (step 5), or the resource group name in `AZURE_RESOURCE_GROUP` is wrong. |

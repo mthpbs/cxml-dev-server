@@ -329,8 +329,24 @@ everybody in, so local runs and the tests need no login. With `Admin:Enabled=tru
   `POST /account/login`. That endpoint validates the antiforgery token, is rate limited (fixed window, 5
   attempts per minute and client address, then `429`) and redirects only to local return URLs.
   `POST /account/logout` clears the cookie.
-- **Fail fast**: `AdminOptions` is validated at start-up. An enabled login without a (valid) hash or
-  password stops the application with a message, so it never runs open by accident.
+- **Microsoft 365 sign-in** (optional, `Admin:Microsoft:*`, independent of the password): the stock
+  ASP.NET Core OpenID Connect handler is registered as the scheme `Microsoft` (always registered; configured
+  from `AdminOptions` through options) against the tenant-specific authority
+  `https://login.microsoftonline.com/{tenantId}/v2.0`, with the authorization code flow and PKCE, scopes
+  `openid profile email` and `prompt=select_account`. It signs into the **existing cookie scheme**, so the
+  `Admin` policy, `AuthorizeRouteView` and the sidebar work unchanged. `POST /account/login/microsoft` (antiforgery
+  protected, same rate limit as the password login, return URL through `ReturnUrls.Sanitize`) starts the
+  challenge. The callback `/signin-oidc` is handled by the authentication middleware, before endpoint routing, and
+  is anonymous by nature. The issuer must be the tenant's, and `OnTokenValidated` additionally requires the `tid`
+  claim to equal the configured tenant id (`MicrosoftClaims.CreatePrincipal`); the cookie gets a slim principal
+  (name from `preferred_username`, `oid`, `tid`, `name`, and `cxml_auth=microsoft`; `cxml_auth=password` for the
+  password login). No tokens are stored. Any remote failure (cancel, bad state, wrong tenant) redirects to
+  `/login?error=sso` and logs only an exception type. Sign-out is local: the Microsoft session is not ended.
+  Without Microsoft settings the scheme gets placeholder options (the handler validates them on every request)
+  and is never challenged.
+- **Fail fast**: `AdminOptions` is validated at start-up. An enabled login without any sign-in method (password
+  hash/password or the complete Microsoft settings), a bad hash, or a Microsoft tenant that is not a single GUID
+  stops the application with a message, so it never runs open by accident.
 
 ### Reverse proxies and forwarded headers
 
