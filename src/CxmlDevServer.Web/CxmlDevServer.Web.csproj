@@ -3,6 +3,10 @@
   <PropertyGroup>
     <RootNamespace>CxmlDevServer.Web</RootNamespace>
     <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
+    <!-- .NET 10 ships _framework/blazor.web.js in an implicit package (Microsoft.AspNetCore.App.Internal.Assets) that is
+         chosen at restore time. The Dockerfile restores with only the project files present (no .razor files yet), so
+         state explicitly that this app needs it; otherwise the image can be published without blazor.web.js (404). -->
+    <RequiresAspNetWebAssets>true</RequiresAspNetWebAssets>
     <!-- Razor components are internal-facing UI; XML docs are required only for the hand-written public classes. -->
     <NoWarn>$(NoWarn);CS1591</NoWarn>
   </PropertyGroup>
