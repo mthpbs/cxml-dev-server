@@ -15,8 +15,9 @@
 // (The other parameters are edited in main.bicepparam. Some az versions also accept extra inline "key=value" arguments
 // next to a .bicepparam file; environment variables work with every version.)
 //
-// Requirement: with adminEnabled=true (the default) adminPasswordHash must be set. The deployment is rejected before the
-// container app is created when it is empty; and the application itself refuses to start without a hash.
+// Requirement: with adminEnabled=true (the default) a sign-in method must be set: adminPasswordHash, the Microsoft 365
+// sign-in (adminMicrosoftTenantId, adminMicrosoftClientId and adminMicrosoftClientSecret), or both. The deployment is
+// rejected before the container app is created when none is set; and the application itself refuses to start without one.
 //
 // Every restart and every new revision (= every deployment) resets the database: SQLite is ephemeral here by design.
 
@@ -133,8 +134,18 @@ param adminEnabled bool = true
 param adminUsername string = 'admin'
 
 @secure()
-@description('Password hash of the admin account (Admin__PasswordHash). REQUIRED when adminEnabled is true. Create it with: docker run --rm -it <image> hash-password. Stored as a container app secret.')
+@description('Password hash of the admin account (Admin__PasswordHash). Required when adminEnabled is true unless the Microsoft sign-in is configured. Create it with: docker run --rm -it <image> hash-password. Stored as a container app secret.')
 param adminPasswordHash string = ''
+
+@description('Directory (tenant) id of the Microsoft 365 tenant whose users may sign in to the admin UI (Admin__Microsoft__TenantId). A GUID; single tenant only. Needs adminMicrosoftClientId and adminMicrosoftClientSecret too.')
+param adminMicrosoftTenantId string = ''
+
+@description('Application (client) id of the Entra app registration (Admin__Microsoft__ClientId). Its redirect URI is <app URL>/signin-oidc.')
+param adminMicrosoftClientId string = ''
+
+@secure()
+@description('Client secret of the Entra app registration (Admin__Microsoft__ClientSecret). Stored as a container app secret.')
+param adminMicrosoftClientSecret string = ''
 
 @description('Externally visible base URL (Cxml__PublicBaseUrl), for example https://cxml.contoso.com. Set it when a custom domain or another proxy sits in front. Empty: derived from the request, which is correct for the default azurecontainerapps.io URL.')
 param publicBaseUrl string = ''
@@ -181,6 +192,9 @@ module environment 'modules/containerAppsEnvironment.bicep' = if (createEnvironm
 
 var effectiveEnvironmentId = createEnvironment ? environment!.outputs.id : existingEnvironmentResourceId
 
+// The complete Microsoft 365 sign-in: tenant id, client id and client secret.
+var microsoftSignInIsComplete = !empty(adminMicrosoftTenantId) && !empty(adminMicrosoftClientId) && !empty(adminMicrosoftClientSecret)
+
 module app 'modules/containerApp.bicep' = {
   name: 'containerApp'
   params: {
@@ -199,6 +213,9 @@ module app 'modules/containerApp.bicep' = {
     adminEnabled: adminEnabled
     adminUsername: adminUsername
     adminPasswordHash: adminPasswordHash
+    adminMicrosoftTenantId: adminMicrosoftTenantId
+    adminMicrosoftClientId: adminMicrosoftClientId
+    adminMicrosoftClientSecret: adminMicrosoftClientSecret
     publicBaseUrl: publicBaseUrl
     allowUnknownPartners: allowUnknownPartners
     seedDemoPartners: seedDemoPartners
@@ -206,8 +223,8 @@ module app 'modules/containerApp.bicep' = {
     extraEnv: extraEnv
     customDomains: customDomains
     // Bicep's assert is experimental. The module parameter below has @minLength(1), so adminEnabled=true with an empty
-    // adminPasswordHash makes the deployment fail early with an error naming the parameter.
-    adminCredentialIsSetOrLoginDisabled: (!adminEnabled || !empty(adminPasswordHash)) ? 'ok' : ''
+    // adminPasswordHash and no complete Microsoft sign-in makes the deployment fail early with an error naming the parameter.
+    adminCredentialIsSetOrLoginDisabled: (!adminEnabled || !empty(adminPasswordHash) || microsoftSignInIsComplete) ? 'ok' : ''
   }
 }
 

@@ -25,22 +25,47 @@
         {
             @if (Error is not null)
             {
-                <div class="alert alert-danger py-2" role="alert" id="login-error">Wrong user name or password.</div>
+                <div class="alert alert-danger py-2" role="alert" id="login-error">@ErrorMessage</div>
             }
 
-            <form method="post" action="account/login">
-                <AntiforgeryToken />
-                <input type="hidden" name="returnUrl" value="@SafeReturnUrl" />
-                <div class="mb-3">
-                    <label class="form-label" for="username">User name</label>
-                    <input class="form-control" id="username" name="username" autocomplete="username" autofocus required />
-                </div>
-                <div class="mb-3">
-                    <label class="form-label" for="password">Password</label>
-                    <input class="form-control" id="password" name="password" type="password" autocomplete="current-password" required />
-                </div>
-                <button class="btn btn-primary w-100" type="submit">Sign in</button>
-            </form>
+            @if (Admin.Value.Microsoft.IsConfigured)
+            {
+                <form method="post" action="account/login/microsoft">
+                    <AntiforgeryToken />
+                    <input type="hidden" name="returnUrl" value="@SafeReturnUrl" />
+                    <button class="btn btn-outline-primary w-100 d-inline-flex align-items-center justify-content-center gap-2" id="microsoft-login" type="submit">
+                        <svg width="18" height="18" viewBox="0 0 21 21" aria-hidden="true" focusable="false">
+                            <rect x="1" y="1" width="9" height="9" fill="#f25022" />
+                            <rect x="11" y="1" width="9" height="9" fill="#7fba00" />
+                            <rect x="1" y="11" width="9" height="9" fill="#00a4ef" />
+                            <rect x="11" y="11" width="9" height="9" fill="#ffb900" />
+                        </svg>
+                        Sign in with @Admin.Value.Microsoft.DisplayName
+                    </button>
+                </form>
+            }
+
+            @if (Admin.Value.Microsoft.IsConfigured && Admin.Value.HasPassword)
+            {
+                <div class="login-divider" role="separator"><span>or</span></div>
+            }
+
+            @if (Admin.Value.HasPassword)
+            {
+                <form method="post" action="account/login">
+                    <AntiforgeryToken />
+                    <input type="hidden" name="returnUrl" value="@SafeReturnUrl" />
+                    <div class="mb-3">
+                        <label class="form-label" for="username">User name</label>
+                        <input class="form-control" id="username" name="username" autocomplete="username" autofocus required />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="password">Password</label>
+                        <input class="form-control" id="password" name="password" type="password" autocomplete="current-password" required />
+                    </div>
+                    <button class="btn btn-primary w-100" type="submit">Sign in</button>
+                </form>
+            }
         }
     </div>
 </div>
@@ -53,4 +78,9 @@
     private string? Error { get; set; }
 
     private string SafeReturnUrl => ReturnUrls.Sanitize(ReturnUrl);
+
+    // error=sso: a failed or cancelled Microsoft sign-in (details are only in the server log); anything else: the password form.
+    private string ErrorMessage => string.Equals(Error, "sso", StringComparison.Ordinal)
+        ? "Microsoft sign-in failed or was cancelled. Try again."
+        : "Wrong user name or password.";
 }

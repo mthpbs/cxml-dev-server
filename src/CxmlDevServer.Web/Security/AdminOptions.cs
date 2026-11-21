@@ -4,7 +4,9 @@ namespace CxmlDevServer.Web.Security;
 
 /// <summary>
 /// Settings of the optional admin login, bound from the <c>Admin</c> configuration section. When
-/// <see cref="Enabled"/> is false (the default) the admin UI is open, as it is for local runs.
+/// <see cref="Enabled"/> is false (the default) the admin UI is open, as it is for local runs. When it is true, the
+/// admin signs in with the single password account, with Microsoft 365 (<see cref="Microsoft"/>), or with either
+/// of the two when both are configured.
 /// </summary>
 public sealed class AdminOptions
 {
@@ -14,7 +16,7 @@ public sealed class AdminOptions
     /// <summary>True: the admin UI requires a login. The PunchOut shop, the cXML endpoints and the test buyer stay anonymous.</summary>
     public bool Enabled { get; set; }
 
-    /// <summary>The user name of the single admin account.</summary>
+    /// <summary>The user name of the single password account; only used when a password is configured.</summary>
     public string Username { get; set; } = "admin";
 
     /// <summary>
@@ -29,6 +31,12 @@ public sealed class AdminOptions
     /// <summary>The sliding lifetime of the login cookie, in hours.</summary>
     public int SessionHours { get; set; } = 8;
 
+    /// <summary>The optional Microsoft 365 (Entra ID) sign-in, bound from <c>Admin:Microsoft</c>.</summary>
+    public MicrosoftSignInOptions Microsoft { get; set; } = new();
+
+    /// <summary>True when a password (hash or clear text) is configured, so the password form is offered.</summary>
+    public bool HasPassword => !string.IsNullOrEmpty(PasswordHash) || !string.IsNullOrEmpty(Password);
+
     /// <summary>
     /// Returns the reason why these settings are unusable, or null. Used to fail at startup rather than to run an
     /// "enabled" login that nobody can pass (or, worse, one that is silently open).
@@ -40,20 +48,31 @@ public sealed class AdminOptions
             return null;
         }
 
-        if (string.IsNullOrWhiteSpace(Username))
+        var microsoft = Microsoft.IsConfigured;
+        if (!HasPassword && !microsoft)
         {
-            return "Admin:Username must not be empty when Admin:Enabled is true.";
+            return "Admin:Enabled is true but no sign-in is configured: set a password (Admin:PasswordHash, environment variable "
+                   + "Admin__PasswordHash; create a hash with `hash-password`), the Microsoft 365 sign-in "
+                   + "(Admin:Microsoft:TenantId, ClientId and ClientSecret; environment variables Admin__Microsoft__TenantId, "
+                   + "Admin__Microsoft__ClientId and Admin__Microsoft__ClientSecret), or both.";
         }
 
-        if (string.IsNullOrEmpty(PasswordHash) && string.IsNullOrEmpty(Password))
+        if (HasPassword)
         {
-            return "Admin:Enabled is true but neither Admin:PasswordHash nor Admin:Password is set. "
-                   + "Create a hash with `hash-password` and set Admin:PasswordHash (environment variable Admin__PasswordHash).";
+            if (string.IsNullOrWhiteSpace(Username))
+            {
+                return "Admin:Username must not be empty when Admin:Enabled is true.";
+            }
+
+            if (!string.IsNullOrEmpty(PasswordHash) && !IsPasswordHasherHash(PasswordHash))
+            {
+                return "Admin:PasswordHash is not a valid ASP.NET Core Identity password hash. Create it with the `hash-password` command.";
+            }
         }
 
-        if (!string.IsNullOrEmpty(PasswordHash) && !IsPasswordHasherHash(PasswordHash))
+        if (Microsoft.Validate() is { } microsoftProblem)
         {
-            return "Admin:PasswordHash is not a valid ASP.NET Core Identity password hash. Create it with the `hash-password` command.";
+            return microsoftProblem;
         }
 
         if (SessionHours < 1)

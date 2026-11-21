@@ -196,10 +196,11 @@ for the section separator, e.g. `Cxml__PublicBaseUrl`), `appsettings.Production.
 | `Cxml:InitializeDatabaseOnStartup` | `true` | Apply EF migrations and seed demo data at startup. |
 | `Cxml:SeedDemoPartners` | `true` | `false`: an empty database gets no demo trading partners and no sample scenario (supplier identities and the catalog are still seeded). Use it for shared environments, since the demo partners have well-known secrets. |
 | `Admin:Enabled` | `false` | `true`: the admin UI requires a login. `/cxml`, the PunchOut shop, the test buyer and `/health` stay open. |
-| `Admin:Username` | `admin` | User name of the admin account. |
-| `Admin:PasswordHash` | none | Password hash (ASP.NET Core Identity format); see *Admin login* below. Required (or `Admin:Password`) when the login is enabled, otherwise the application does not start. |
+| `Admin:Username` | `admin` | User name of the password account (only used when a password is configured). |
+| `Admin:PasswordHash` | none | Password hash (ASP.NET Core Identity format); see *Admin login* below. When the login is enabled, set this (or `Admin:Password`), the Microsoft settings below, or both; otherwise the application does not start. |
 | `Admin:Password` | none | Plain-text fallback for secret stores; ignored when a hash is set. |
 | `Admin:SessionHours` | `8` | Sliding lifetime of the login cookie. |
+| `Admin:Microsoft:TenantId` / `ClientId` / `ClientSecret` | none | Microsoft 365 (Entra ID) sign-in for the users of one tenant; see [Microsoft 365 sign-in](docs/deployment/configuration.md#microsoft-365-sign-in-entra-id). All three are required once one is set. |
 | `DataProtection:KeysPath` | `keys` folder next to the SQLite file | Where cookie and antiforgery keys are stored, so logins survive restarts. Empty: in memory. |
 | `ASPNETCORE_FORWARDEDHEADERS_ENABLED` | unset (`true` in the Docker image) | Environment variable that makes the server honour `X-Forwarded-For` and `X-Forwarded-Proto` from a reverse proxy, so URLs it creates are `https://` behind a TLS-terminating proxy. |
 
@@ -216,6 +217,11 @@ export Admin__Enabled=true
 export Admin__PasswordHash='<the hash>'
 dotnet run --project src/CxmlDevServer.Web
 ```
+
+Instead of (or next to) the password, administrators can sign in with their Microsoft 365 account:
+register a single-tenant app in Entra ID and set `Admin__Microsoft__TenantId`, `Admin__Microsoft__ClientId` and
+`Admin__Microsoft__ClientSecret` (steps in
+[docs/deployment/configuration.md](docs/deployment/configuration.md#microsoft-365-sign-in-entra-id)).
 
 Only the admin pages are protected. Buyers keep using `/cxml`, the PunchOut shop and the test buyer without a
 login. The login is rate limited (5 attempts per minute and client address). The executable also has

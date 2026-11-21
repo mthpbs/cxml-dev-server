@@ -141,7 +141,7 @@ docker login ghcr.io
    |---|---|---|
    | `DOMAIN` | `cxml.example.com` | Public host name. |
    | `ACME_EMAIL` | `ops@yourcompany.com` | Contact for the certificate authority. Required in every mode. Use a real address: Let's Encrypt rejects `example.com` addresses. |
-   | `ADMIN_PASSWORD_HASH` | the hash from step 2 | Compose refuses to start while it is empty. |
+   | `ADMIN_PASSWORD_HASH` | the hash from step 2 | Set it, or the `ADMIN_MS_*` Microsoft settings (see [Microsoft 365 sign-in](configuration.md#microsoft-365-sign-in-entra-id)), or both. The app stops at start-up (`docker compose logs app`) when neither is set. |
 
    Optional values (the commented lines in `.env.example`):
 
@@ -473,7 +473,7 @@ docker compose logs caddy | grep -i -E "error|obtain|certificate|acme"
 
 | Symptom | Fix |
 |---|---|
-| `docker compose` complains `Set ADMIN_PASSWORD_HASH in .env`, `Set DOMAIN in .env` or `Set ACME_EMAIL in .env` | The variable is empty or missing. Compose reads `.env` from the folder of `docker-compose.yml`. |
+| `docker compose` complains `Set DOMAIN in .env` or `Set ACME_EMAIL in .env` | The variable is empty or missing. Compose reads `.env` from the folder of `docker-compose.yml`. |
 | `app` is `unhealthy` or restarts | `docker compose logs app`. A hash that is damaged or not made by `hash-password` stops the app at startup with `Admin:PasswordHash is not a valid ASP.NET Core Identity password hash`. |
 | `StartPage` URLs wrong | See [forwarded headers and PublicBaseUrl](configuration.md#forwarded-headers-and-publicbaseurl). Behind an additional proxy or a non-standard port set `CXML_PUBLIC_BASE_URL`. |
 | `401` from `/cxml` for a buyer | No matching trading partner or a wrong shared secret; open the **Message log** to see the reason. |
